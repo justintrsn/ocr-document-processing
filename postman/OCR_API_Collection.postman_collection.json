@@ -1,0 +1,300 @@
+{
+  "info": {
+    "name": "OCR Document Processing API",
+    "description": "Complete collection for testing the OCR Document Processing API with quality assessment and LLM enhancement",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "sample_base64",
+      "value": "",
+      "type": "string",
+      "description": "Base64 encoded test image - set this in environment"
+    },
+    {
+      "key": "obs_bucket",
+      "value": "sample-data-bucket",
+      "type": "string"
+    },
+    {
+      "key": "obs_path",
+      "value": "OCR/scanned_document.jpg",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health Check",
+      "request": {
+        "method": "GET",
+        "header": [],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        },
+        "description": "Check if the API is healthy and running"
+      },
+      "response": []
+    },
+    {
+      "name": "OCR Processing",
+      "item": [
+        {
+          "name": "Quick OCR (No Enhancement)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"return_format\": \"ocr_only\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 40,\n    \"confidence_threshold\": 70\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Fast OCR processing without LLM enhancement"
+          },
+          "response": []
+        },
+        {
+          "name": "Full Processing with Enhancement",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": true,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Complete processing with OCR and LLM enhancement"
+          },
+          "response": []
+        },
+        {
+          "name": "Process from OBS",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"obs_url\",\n    \"obs_url\": \"obs://{{obs_bucket}}/{{obs_path}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Process document from OBS storage"
+          },
+          "response": []
+        },
+        {
+          "name": "Minimal Response Format",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"return_format\": \"minimal\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Get minimal response with essential data only"
+          },
+          "response": []
+        },
+        {
+          "name": "Async Processing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": true,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Submit document for async processing"
+          },
+          "response": []
+        },
+        {
+          "name": "Low Quality Threshold",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 20,\n    \"confidence_threshold\": 50\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Process with relaxed quality thresholds for poor quality documents"
+          },
+          "response": []
+        },
+        {
+          "name": "Quality Check Only",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{sample_base64}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": false,\n    \"enable_enhancement\": false,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr"]
+            },
+            "description": "Perform only quality assessment without OCR"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Async Job Management",
+      "item": [
+        {
+          "name": "Get Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr/job/:job_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr", "job", ":job_id"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "job_abc123",
+                  "description": "Job ID from async processing"
+                }
+              ]
+            },
+            "description": "Check status of async processing job"
+          },
+          "response": []
+        },
+        {
+          "name": "Cancel Job",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/v1/ocr/job/:job_id",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "ocr", "job", ":job_id"],
+              "variable": [
+                {
+                  "key": "job_id",
+                  "value": "job_abc123",
+                  "description": "Job ID to cancel"
+                }
+              ]
+            },
+            "description": "Cancel an async processing job"
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Helper to encode file to base64 (run in Postman console)",
+          "// const fs = require('fs');",
+          "// const imageFile = fs.readFileSync('path/to/image.jpg');",
+          "// const base64 = imageFile.toString('base64');",
+          "// pm.environment.set('sample_base64', base64);"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Common test scripts",
+          "pm.test('Status code is 200', function () {",
+          "    pm.response.to.have.status(200);",
+          "});",
+          "",
+          "pm.test('Response time is less than 5000ms', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(5000);",
+          "});",
+          "",
+          "pm.test('Response has required fields', function () {",
+          "    const jsonData = pm.response.json();",
+          "    pm.expect(jsonData).to.have.property('status');",
+          "});",
+          "",
+          "// Save job_id if async",
+          "if (pm.response.json().job_id) {",
+          "    pm.environment.set('last_job_id', pm.response.json().job_id);",
+          "}"
+        ]
+      }
+    }
+  ]
+}
