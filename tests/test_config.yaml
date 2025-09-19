@@ -1,0 +1,99 @@
+# Test Configuration File
+# This file configures test parameters for document processing tests
+
+# Document test settings
+documents:
+  # List of documents to test (relative to tests/documents/)
+  test_files:
+    - scanned_document.jpg
+    # Add more documents here as needed:
+    # - scanned_document2.jpg
+    # - medical_report.pdf
+    # - invoice.png
+
+  # Whether to run tests on all documents or just the first one
+  test_all: true
+
+  # Maximum number of documents to test in batch tests
+  max_batch_size: 5
+
+# Quality thresholds for testing
+quality:
+  # Overall quality threshold for automatic processing
+  ocr_threshold: 80.0
+
+  # Individual metric thresholds
+  thresholds:
+    sharpness:
+      excellent: 80
+      good: 60
+      fair: 40
+      poor: 20
+    contrast:
+      excellent: 80
+      good: 60
+      fair: 40
+      poor: 20
+    resolution:
+      excellent: 90  # 300+ DPI
+      good: 60      # 200-300 DPI
+      fair: 30      # 150-200 DPI
+      poor: 0       # <150 DPI
+    noise:
+      excellent: 90
+      good: 70
+      fair: 50
+      poor: 30
+
+# OBS test settings
+obs:
+  test_bucket: "sample-dataset-bucket"
+  test_prefix: "OCR/"
+  # List of OBS keys to test (if different from local files)
+  test_keys:
+    - "OCR/scanned_document.jpg"
+    # - "OCR/scanned_document2.jpg"
+
+# Queue testing
+queue:
+  # Enable queue testing
+  enabled: true
+
+  # Test queue priorities
+  test_priorities:
+    - high    # confidence < 60
+    - medium  # confidence 60-80
+    - low     # confidence > 80
+
+  # Maximum queue size for testing
+  max_queue_size: 100
+
+# Performance testing
+performance:
+  # Timeout for OCR processing (seconds)
+  ocr_timeout: 180
+
+  # Target processing time (seconds)
+  target_time: 6
+
+  # Maximum acceptable processing time (seconds)
+  max_time: 30
+
+# Test modes
+test_modes:
+  # Enable/disable specific test modes
+  local_files: true
+  obs_urls: true
+  public_urls: true
+  batch_processing: true
+  queue_management: true
+
+# Mock data settings
+mock:
+  # Use mock responses for external services
+  use_mock_ocr: true
+  use_mock_obs: true
+
+  # Mock response delays (milliseconds)
+  ocr_delay: 500
+  obs_delay: 100
