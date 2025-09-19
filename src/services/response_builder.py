@@ -43,9 +43,9 @@ class ResponseBuilder:
         Returns:
             Complete OCR response
         """
-        # Build quality check response if performed
+        # Build quality check response (always performed)
         quality_check = None
-        if request.processing_options.enable_quality_check and result.confidence_report:
+        if result.confidence_report:
             quality_check = QualityCheckResponse(
                 performed=True,
                 passed=result.confidence_report.image_quality_score >= request.thresholds.image_quality_threshold,

@@ -371,8 +371,8 @@ class ProcessingOrchestrator:
         for enhancement_type, result in enhancement_results.items():
             if result.enhanced_text:
                 enhanced_text = result.enhanced_text
-            if result.grammar_corrections:
-                corrections_made.extend(result.grammar_corrections)
+            if hasattr(result, 'corrections') and result.corrections:
+                corrections_made.extend(result.corrections)
 
         # Create confidence report
         confidence_report = ConfidenceReport(

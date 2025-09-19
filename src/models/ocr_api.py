@@ -46,9 +46,7 @@ class ProcessingOptions(BaseModel):
     """Processing configuration options"""
     # Quality check is always performed - it gates OCR processing
     enable_ocr: bool = Field(True, description="Perform OCR extraction")
-    enable_enhancement: bool = Field(False, description="Apply LLM enhancement")
-    enhancement_types: List[str] = Field(default_factory=lambda: ["context"],
-                                         description="Types of enhancement if enabled")
+    enable_enhancement: bool = Field(False, description="Apply LLM enhancement (comprehensive single-pass improvement)")
     return_format: ReturnFormat = Field(ReturnFormat.FULL,
                                         description="Response format")
 

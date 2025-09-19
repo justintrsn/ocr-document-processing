@@ -5,6 +5,7 @@ Streamlit Demo for OCR Document Processing System
 import streamlit as st
 import requests
 import json
+import base64
 import time
 from pathlib import Path
 import pandas as pd
@@ -45,6 +46,12 @@ st.markdown("""
         border: 1px solid #bee5eb;
         color: #0c5460;
     }
+    .metric-card {
+        background-color: #f8f9fa;
+        padding: 1rem;
+        border-radius: 0.5rem;
+        border: 1px solid #dee2e6;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,10 +65,32 @@ def check_api_health():
         return False
 
 
+def encode_file_to_base64(file_content):
+    """Encode file content to base64"""
+    return base64.b64encode(file_content).decode('utf-8')
+
+
 def main():
     # Title and description
     st.title("🔍 OCR Document Processing System")
-    st.markdown("**AI-Powered Document Analysis with Quality Assessment and LLM Enhancement**")
+    st.markdown("**Unified AI-Powered Document Analysis with Quality Assessment and LLM Enhancement**")
+
+    # Initialize session state for logs
+    if "logs" not in st.session_state:
+        st.session_state["logs"] = []
+
+    def add_log(level, message, detail=None):
+        """Add a log entry"""
+        log_entry = {
+            "time": datetime.now().strftime("%H:%M:%S"),
+            "level": level,
+            "message": message,
+            "detail": detail
+        }
+        st.session_state["logs"].append(log_entry)
+        # Keep only last 50 logs
+        if len(st.session_state["logs"]) > 50:
+            st.session_state["logs"] = st.session_state["logs"][-50:]
 
     # Sidebar
     with st.sidebar:
@@ -72,53 +101,72 @@ def main():
             st.success("✅ API Connected")
         else:
             st.error("❌ API Offline - Start the API server first")
-            st.code("python -m src.api.main", language="bash")
+            st.code("python -m uvicorn src.api.main:app --reload", language="bash")
 
         st.divider()
 
         # Processing Configuration
         st.subheader("Processing Settings")
 
-        quality_threshold = st.slider(
+        # OCR Processing
+        enable_ocr = st.checkbox("Enable OCR Processing", value=True,
+            help="Perform OCR extraction (automatically skipped if quality is below threshold)")
+
+        # Enhancement
+        enable_enhancement = st.checkbox("Enable LLM Enhancement", value=False,
+            help="Applies comprehensive enhancement including context, spelling, grammar, and structure in a single optimized LLM call")
+
+        st.divider()
+
+        # Thresholds
+        st.subheader("Thresholds")
+
+        image_quality_threshold = st.slider(
             "Image Quality Threshold",
-            min_value=10,
-            max_value=90,
-            value=30,
-            step=10,
-            help="Minimum quality score to proceed with OCR"
+            min_value=0,
+            max_value=100,
+            value=60,  # Updated default
+            step=5,
+            help="Minimum quality score to proceed with OCR (default: 60)"
         )
 
         confidence_threshold = st.slider(
             "Confidence Threshold",
-            min_value=50,
-            max_value=95,
-            value=80,
+            min_value=0,
+            max_value=100,
+            value=80,  # Default
             step=5,
-            help="Minimum confidence for automatic processing"
+            help="Minimum confidence for automatic routing (default: 80)"
         )
 
         st.divider()
 
-        # Enhancement Options
-        st.subheader("LLM Enhancement")
+        # Response Format
+        st.subheader("Response Format")
+        return_format = st.selectbox(
+            "Select Format",
+            ["full", "minimal", "ocr_only"],
+            help="Choose the response format"
+        )
 
-        enable_enhancement = st.checkbox("Enable LLM Enhancement", value=True,
-            help="Performs comprehensive enhancement including grammar, context, and structure analysis in a single optimized call")
+        # Async Processing
+        async_processing = st.checkbox("Async Processing", value=False,
+            help="Process document asynchronously")
 
         st.divider()
 
         # Info Section
         st.info("""
-        **Pipeline Steps:**
-        1. Image Quality Check
-        2. OCR Processing
-        3. LLM Enhancement (optional)
-        4. Confidence Scoring
-        5. Routing Decision
+        **How it works:**
+        - Flexible configuration options
+        - Quality check always performed
+        - OCR skipped if quality too low
+        - Optional LLM enhancement
+        - Dual threshold system
         """)
 
     # Main Content
-    tabs = st.tabs(["📤 Upload & Process", "📊 Results", "📈 Analytics", "💰 Cost Estimation"])
+    tabs = st.tabs(["📤 Upload & Process", "📊 Results", "🔍 Raw Response", "📈 Analytics", "📋 Logs"])
 
     # Upload & Process Tab
     with tabs[0]:
@@ -142,11 +190,14 @@ def main():
 
                 if document_file:
                     st.success(f"📄 File loaded: {document_file.name}")
+                    # Show preview for images
+                    if document_file.type.startswith("image/"):
+                        st.image(document_file, caption="Document Preview", use_column_width=True)
 
             else:
                 obs_url = st.text_input(
                     "OBS URL",
-                    placeholder="obs://bucket-name/document.jpg",
+                    placeholder="obs://bucket-name/path/to/document.jpg",
                     help="Enter the OBS URL of your document"
                 )
 
@@ -156,289 +207,448 @@ def main():
                     st.error("Please upload a file or provide an OBS URL")
                 else:
                     with st.spinner("Processing document..."):
-                        # Prepare request
-                        files = None
-                        data = {
-                            "quality_threshold": quality_threshold,
-                            "confidence_threshold": confidence_threshold,
-                            "enable_context": enable_enhancement  # Using context as the flag for enhancement
-                        }
-
-                        if document_file:
-                            files = {"file": document_file}
-                        else:
-                            data["obs_url"] = obs_url
-
                         try:
-                            # Submit document
+                            add_log("INFO", "Starting document processing")
+
+                            # Prepare request payload
+                            request_data = {
+                                "processing_options": {
+                                    "enable_ocr": enable_ocr,
+                                    "enable_enhancement": enable_enhancement,
+                                    "return_format": return_format
+                                },
+                                "thresholds": {
+                                    "image_quality_threshold": image_quality_threshold,
+                                    "confidence_threshold": confidence_threshold
+                                },
+                                "async_processing": async_processing
+                            }
+
+                            # Add source based on input method
+                            if document_file:
+                                file_content = document_file.read()
+                                add_log("INFO", f"Encoding file: {document_file.name} ({len(file_content)} bytes)")
+                                request_data["source"] = {
+                                    "type": "file",
+                                    "file": encode_file_to_base64(file_content)
+                                }
+                            else:
+                                add_log("INFO", f"Using OBS URL: {obs_url}")
+                                request_data["source"] = {
+                                    "type": "obs_url",
+                                    "obs_url": obs_url
+                                }
+
+                            # Make API request
+                            add_log("INFO", f"Sending request to API: {API_BASE_URL}/api/v1/ocr")
+                            add_log("DEBUG", "Request options", {"enable_ocr": enable_ocr, "enable_enhancement": enable_enhancement, "format": return_format})
+                            start_time = time.time()
                             response = requests.post(
-                                f"{API_BASE_URL}/documents/process",
-                                files=files,
-                                data=data
+                                f"{API_BASE_URL}/api/v1/ocr",
+                                json=request_data,
+                                headers={"Content-Type": "application/json"}
                             )
+                            elapsed_time = time.time() - start_time
+                            add_log("INFO", f"API response received: {response.status_code} in {elapsed_time:.2f}s")
 
                             if response.status_code == 200:
                                 result = response.json()
-                                st.session_state["document_id"] = result["document_id"]
-                                st.success(f"✅ Document submitted: {result['document_id']}")
+                                st.session_state["result"] = result
+                                st.session_state["processing_time"] = elapsed_time
 
-                                # Wait for processing
-                                progress_bar = st.progress(0)
-                                status_text = st.empty()
+                                if async_processing and "job_id" in result:
+                                    # Handle async response
+                                    st.success(f"✅ Job submitted: {result['job_id']}")
+                                    st.info(f"Estimated time: {result.get('estimated_time_seconds', 30)} seconds")
 
-                                for i in range(100):
-                                    # Check status
-                                    status_response = requests.get(
-                                        f"{API_BASE_URL}/documents/{result['document_id']}/status"
-                                    )
-
-                                    if status_response.status_code == 200:
-                                        status_data = status_response.json()
-
-                                        if status_data["status"] in ["completed", "manual_review", "failed"]:
-                                            progress_bar.progress(100)
-                                            break
-
-                                        status_text.text(f"Status: {status_data['status']}")
-                                        progress_bar.progress(min(i + 10, 90))
-
-                                    time.sleep(1)
-
-                                # Get final result
-                                final_response = requests.get(
-                                    f"{API_BASE_URL}/documents/{result['document_id']}/result"
-                                )
-
-                                if final_response.status_code == 200:
-                                    final_result = final_response.json()
-                                    st.session_state["result"] = final_result
-                                    st.success("✅ Processing complete!")
+                                    # Poll for results
+                                    if st.button("Check Job Status"):
+                                        job_response = requests.get(
+                                            f"{API_BASE_URL}/api/v1/ocr/job/{result['job_id']}"
+                                        )
+                                        if job_response.status_code == 200:
+                                            job_result = job_response.json()
+                                            st.json(job_result)
+                                else:
+                                    # Handle sync response
+                                    add_log("SUCCESS", f"Processing complete in {elapsed_time:.2f} seconds")
+                                    st.success(f"✅ Processing complete in {elapsed_time:.2f} seconds!")
 
                                     # Display key metrics
-                                    col1, col2, col3 = st.columns(3)
-                                    with col1:
-                                        st.metric("Words Extracted", final_result.get("word_count", 0))
-                                    with col2:
-                                        st.metric("Status", final_result.get("status", "Unknown"))
-                                    with col3:
-                                        processing_time = final_result.get("processing_metrics", {}).get("total_processing_time", 0)
-                                        st.metric("Processing Time", f"{processing_time:.1f}s")
+                                    if result.get("status") == "success":
+                                        col1, col2, col3, col4 = st.columns(4)
 
-                                else:
-                                    st.error("Failed to get processing results")
+                                        with col1:
+                                            if "quality_check" in result and result["quality_check"]:
+                                                quality_score = result["quality_check"].get("score", 0)
+                                                st.metric("Quality Score", f"{quality_score:.1f}")
+
+                                        with col2:
+                                            if "ocr_result" in result and result["ocr_result"]:
+                                                word_count = result["ocr_result"].get("word_count", 0)
+                                                st.metric("Words Extracted", word_count)
+
+                                        with col3:
+                                            if "confidence_report" in result:
+                                                confidence = result["confidence_report"].get("final_confidence", 0)
+                                                st.metric("Confidence", f"{confidence:.1f}%")
+
+                                        with col4:
+                                            if "confidence_report" in result:
+                                                routing = result["confidence_report"].get("routing_decision", "unknown")
+                                                st.metric("Routing", routing)
+                                    else:
+                                        error_msg = result.get('error', 'Unknown error')
+                                        add_log("ERROR", f"Processing failed: {error_msg}")
+                                        st.error(f"Processing failed: {error_msg}")
 
                             else:
-                                st.error(f"Error: {response.text}")
+                                add_log("ERROR", f"API Error {response.status_code}", response.text)
+                                st.error(f"API Error ({response.status_code}): {response.text}")
 
+                        except requests.exceptions.RequestException as e:
+                            add_log("ERROR", f"Request failed: {str(e)}")
+                            st.error(f"Request failed: {str(e)}")
                         except Exception as e:
+                            add_log("ERROR", f"Error processing document: {str(e)}")
                             st.error(f"Error processing document: {str(e)}")
 
         with col2:
-            st.header("Quick Stats")
+            st.header("Quick Info")
 
-            # Display session stats
-            if "result" in st.session_state:
+            if "result" in st.session_state and st.session_state["result"].get("status") == "success":
                 result = st.session_state["result"]
 
-                # Confidence scores
-                if "document_id" in st.session_state:
-                    conf_response = requests.get(
-                        f"{API_BASE_URL}/documents/{st.session_state['document_id']}/confidence"
-                    )
+                # Quality Check Results
+                if "quality_check" in result and result["quality_check"]:
+                    st.subheader("📷 Quality Check")
+                    qc = result["quality_check"]
 
-                    if conf_response.status_code == 200:
-                        conf_data = conf_response.json()
+                    if qc.get("passed"):
+                        st.success(f"✅ Passed (Score: {qc.get('score', 0):.1f})")
+                    else:
+                        st.error(f"❌ Failed (Score: {qc.get('score', 0):.1f})")
 
-                        st.subheader("Confidence Scores")
-                        scores = conf_data.get("confidence_scores", {})
+                    # Show metrics
+                    if "metrics" in qc:
+                        for metric, value in qc["metrics"].items():
+                            st.progress(value / 100)
+                            st.caption(f"{metric}: {value:.1f}")
 
-                        # Only show active scores (Image Quality and OCR)
-                        active_scores = {
-                            "image_quality": scores.get("image_quality", 0),
-                            "ocr_confidence": scores.get("ocr_confidence", 0),
-                            "final": scores.get("final", 0)
-                        }
+                st.divider()
 
-                        for key, value in active_scores.items():
-                            if key == "final":
-                                st.metric(f"**{key.replace('_', ' ').title()}**", f"{value:.1f}%")
-                            else:
-                                st.progress(value / 100)
-                                st.caption(f"{key.replace('_', ' ').title()}: {value:.1f}%")
+                # Confidence Report
+                if "confidence_report" in result:
+                    st.subheader("🎯 Confidence Report")
+                    cr = result["confidence_report"]
 
-                        # Routing decision
-                        routing = conf_data.get("routing", {})
-                        if routing.get("decision") == "automatic":
-                            st.success("✅ Automatic Processing")
-                        else:
-                            st.warning("⚠️ Manual Review Required")
+                    # Show scores
+                    st.metric("Image Quality", f"{cr.get('image_quality_score', 0):.1f}")
+                    st.metric("OCR Confidence", f"{cr.get('ocr_confidence_score', 0):.1f}")
+                    st.metric("**Final Confidence**", f"{cr.get('final_confidence', 0):.1f}%")
+
+                    # Routing decision
+                    routing = cr.get("routing_decision", "unknown")
+                    if routing == "pass":
+                        st.success(f"✅ {cr.get('routing_reason', 'Automatic processing')}")
+                    else:
+                        st.warning(f"⚠️ {cr.get('routing_reason', 'Manual review required')}")
 
     # Results Tab
     with tabs[1]:
         st.header("Processing Results")
 
-        if "result" in st.session_state:
+        if "result" in st.session_state and st.session_state["result"].get("status") == "success":
             result = st.session_state["result"]
 
-            # Add download button at the top
-            col1, col2, col3 = st.columns([2, 1, 1])
-            with col3:
-                # Create full report
-                report = create_full_report(result, st.session_state.get("document_id", ""))
-                report_json = json.dumps(report, indent=2)
-
-                st.download_button(
-                    label="📥 Download Full Report (JSON)",
-                    data=report_json,
-                    file_name=f"ocr_report_{st.session_state.get('document_id', 'unknown')[:8]}.json",
-                    mime="application/json",
-                    use_container_width=True
-                )
-
-            # Create tabs for different result views
-            result_tabs = st.tabs(["Extracted Text", "Enhanced Text", "Corrections", "Metrics"])
+            # Create columns for different aspects
+            result_tabs = st.tabs(["📝 Text", "✨ Enhancement", "📊 Confidence", "⏱️ Performance"])
 
             with result_tabs[0]:
-                st.subheader("Original OCR Text")
-                extracted_text = result.get("extracted_text", "")
-                st.text_area("Text", extracted_text, height=400, key="extracted", label_visibility="collapsed")
+                st.subheader("Extracted Text")
+
+                if "ocr_result" in result and result["ocr_result"]:
+                    ocr = result["ocr_result"]
+
+                    # Text display
+                    st.text_area(
+                        "OCR Text",
+                        ocr.get("raw_text", "No text extracted"),
+                        height=400,
+                        key="extracted_text"
+                    )
+
+                    # Confidence distribution
+                    if "confidence_distribution" in ocr:
+                        st.subheader("Confidence Distribution")
+                        dist = ocr["confidence_distribution"]
+                        df = pd.DataFrame([dist])
+                        st.bar_chart(df.T)
+                else:
+                    st.info("No OCR results available (quality check may have failed)")
 
             with result_tabs[1]:
-                st.subheader("Enhanced Text (LLM Corrected)")
-                enhanced_text = result.get("enhanced_text", "")
-                if enhanced_text:
-                    st.text_area("Text", enhanced_text, height=400, key="enhanced", label_visibility="collapsed")
+                st.subheader("LLM Enhancement")
+
+                if "enhancement" in result and result["enhancement"] and result["enhancement"].get("performed"):
+                    enh = result["enhancement"]
+
+                    # Enhanced text
+                    st.text_area(
+                        "Enhanced Text",
+                        enh.get("enhanced_text", "No enhanced text"),
+                        height=400,
+                        key="enhanced_text"
+                    )
+
+                    # Corrections
+                    if "corrections" in enh and enh["corrections"]:
+                        st.subheader("Corrections Made")
+                        df = pd.DataFrame(enh["corrections"])
+                        st.dataframe(df, use_container_width=True)
+
+                    # Stats
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.metric("Processing Time", f"{enh.get('processing_time_ms', 0)/1000:.2f}s")
+                    with col2:
+                        st.metric("Tokens Used", enh.get("tokens_used", 0))
                 else:
-                    st.info("No enhancements applied or available")
+                    st.info("Enhancement not performed or not enabled")
 
             with result_tabs[2]:
-                st.subheader("Corrections Made")
-                corrections = result.get("corrections_made", [])
-                if corrections:
-                    df = pd.DataFrame(corrections)
-                    st.dataframe(df, use_container_width=True)
-                else:
-                    st.info("No corrections made")
+                st.subheader("Confidence Analysis")
+
+                if "confidence_report" in result:
+                    cr = result["confidence_report"]
+
+                    # Create a visual representation
+                    scores_data = {
+                        "Component": ["Image Quality", "OCR Confidence", "Final Score"],
+                        "Score": [
+                            cr.get("image_quality_score", 0),
+                            cr.get("ocr_confidence_score", 0),
+                            cr.get("final_confidence", 0)
+                        ]
+                    }
+                    df = pd.DataFrame(scores_data)
+                    st.bar_chart(df.set_index("Component"))
+
+                    # Threshold comparison
+                    st.subheader("Threshold Analysis")
+                    thresholds = cr.get("thresholds_applied", {})
+
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.info(f"Image Quality Threshold: {thresholds.get('image_quality_threshold', 60)}")
+                        if cr.get("quality_check_passed"):
+                            st.success("✅ Quality check passed")
+                        else:
+                            st.error("❌ Quality check failed")
+
+                    with col2:
+                        st.info(f"Confidence Threshold: {thresholds.get('confidence_threshold', 80)}")
+                        if cr.get("confidence_check_passed"):
+                            st.success("✅ Confidence check passed")
+                        else:
+                            st.error("❌ Confidence check failed")
 
             with result_tabs[3]:
-                st.subheader("Processing Metrics")
-                metrics = result.get("processing_metrics", {})
-                if metrics:
-                    st.json(metrics)
+                st.subheader("Performance Metrics")
 
+                if "metadata" in result:
+                    meta = result["metadata"]
+
+                    # Overall processing time
+                    st.metric("Total Processing Time", f"{meta.get('processing_time_ms', 0)/1000:.2f}s")
+
+                    # Breakdown
+                    st.subheader("Processing Breakdown")
+
+                    breakdown = []
+
+                    if "quality_check" in result and result["quality_check"]:
+                        if "processing_time_ms" in result["quality_check"]:
+                            breakdown.append({
+                                "Stage": "Quality Check",
+                                "Time (ms)": result["quality_check"]["processing_time_ms"]
+                            })
+
+                    if "ocr_result" in result and result["ocr_result"]:
+                        if "processing_time_ms" in result["ocr_result"]:
+                            breakdown.append({
+                                "Stage": "OCR Processing",
+                                "Time (ms)": result["ocr_result"]["processing_time_ms"]
+                            })
+
+                    if "enhancement" in result and result["enhancement"]:
+                        if "processing_time_ms" in result["enhancement"]:
+                            breakdown.append({
+                                "Stage": "LLM Enhancement",
+                                "Time (ms)": result["enhancement"]["processing_time_ms"]
+                            })
+
+                    if breakdown:
+                        df = pd.DataFrame(breakdown)
+                        st.dataframe(df, use_container_width=True)
+
+                        # Visualization
+                        st.bar_chart(df.set_index("Stage"))
+
+        elif "result" in st.session_state:
+            result = st.session_state["result"]
+            if result.get("status") == "failed":
+                st.error(f"Processing failed: {result.get('error', 'Unknown error')}")
+            elif result.get("status") == "processing":
+                st.info("Document is still processing...")
         else:
             st.info("No results available. Process a document first.")
 
-    # Analytics Tab
+    # Raw Response Tab
     with tabs[2]:
-        st.header("System Analytics")
+        st.header("Raw API Response")
 
-        # Get queue statistics
-        try:
-            stats_response = requests.get(f"{API_BASE_URL}/queue/stats")
-            if stats_response.status_code == 200:
-                stats = stats_response.json()
+        if "result" in st.session_state:
+            # Pretty print JSON
+            st.json(st.session_state["result"])
 
-                col1, col2, col3, col4 = st.columns(4)
-                with col1:
-                    st.metric("Total Documents", stats.get("total_documents", 0))
-                with col2:
-                    st.metric("Completed", stats.get("completed", 0))
-                with col3:
-                    st.metric("Manual Review", stats.get("manual_review", 0))
-                with col4:
-                    st.metric("Failed", stats.get("failed", 0))
+            # Download button
+            result_json = json.dumps(st.session_state["result"], indent=2)
+            st.download_button(
+                label="📥 Download Response (JSON)",
+                data=result_json,
+                file_name=f"ocr_response_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                mime="application/json"
+            )
 
-                # Priority distribution
-                st.subheader("Priority Distribution")
-                priority_dist = stats.get("priority_distribution", {})
-                if priority_dist:
-                    df = pd.DataFrame([priority_dist])
-                    st.bar_chart(df.T)
+            # Processing time
+            if "processing_time" in st.session_state:
+                st.metric("API Response Time", f"{st.session_state['processing_time']:.2f}s")
+        else:
+            st.info("No response data available")
 
-        except Exception as e:
-            st.error(f"Failed to load analytics: {str(e)}")
-
-    # Cost Estimation Tab
+    # Analytics Tab
     with tabs[3]:
-        st.header("Cost Estimation")
+        st.header("Processing Analytics")
 
-        col1, col2 = st.columns(2)
+        if "result" in st.session_state and st.session_state["result"].get("status") == "success":
+            result = st.session_state["result"]
 
+            # Create summary statistics
+            col1, col2, col3 = st.columns(3)
+
+            with col1:
+                st.subheader("Document Stats")
+                if "ocr_result" in result and result["ocr_result"]:
+                    st.metric("Words", result["ocr_result"].get("word_count", 0))
+                    st.metric("Characters", len(result["ocr_result"].get("raw_text", "")))
+
+            with col2:
+                st.subheader("Quality Metrics")
+                if "quality_check" in result and result["quality_check"]:
+                    qc = result["quality_check"]
+                    st.metric("Quality Score", f"{qc.get('score', 0):.1f}")
+                    st.metric("Issues Found", len(qc.get("issues", [])))
+
+            with col3:
+                st.subheader("Processing Efficiency")
+                if "metadata" in result:
+                    total_time = result["metadata"].get("processing_time_ms", 0) / 1000
+                    st.metric("Total Time", f"{total_time:.2f}s")
+
+                    # Calculate efficiency
+                    if "ocr_result" in result and result["ocr_result"]:
+                        words = result["ocr_result"].get("word_count", 1)
+                        if words > 0:
+                            st.metric("Words/Second", f"{words/total_time:.0f}")
+
+            # Comparison with thresholds
+            st.divider()
+            st.subheader("Threshold Compliance")
+
+            if "confidence_report" in result:
+                cr = result["confidence_report"]
+
+                # Create comparison chart
+                threshold_data = {
+                    "Metric": ["Image Quality", "Confidence"],
+                    "Actual": [
+                        cr.get("image_quality_score", 0),
+                        cr.get("final_confidence", 0)
+                    ],
+                    "Threshold": [
+                        cr.get("thresholds_applied", {}).get("image_quality_threshold", 60),
+                        cr.get("thresholds_applied", {}).get("confidence_threshold", 80)
+                    ]
+                }
+
+                df = pd.DataFrame(threshold_data)
+                st.bar_chart(df.set_index("Metric"))
+        else:
+            st.info("Process a document to see analytics")
+
+    # Logs Tab
+    with tabs[4]:
+        st.header("System Logs")
+
+        # Log controls
+        col1, col2, col3 = st.columns([1, 1, 2])
         with col1:
-            st.subheader("Estimate Processing Costs")
-
-            doc_size = st.number_input("Document Size (MB)", min_value=0.1, max_value=10.0, value=2.0)
-            num_docs = st.number_input("Number of Documents", min_value=1, max_value=1000, value=10)
-
-            enable_llm = st.checkbox("Include LLM Enhancement", value=True)
-            enhancement_options = ["context"] if enable_llm else []
-
-            if st.button("Calculate Cost"):
-                try:
-                    response = requests.post(
-                        f"{API_BASE_URL}/cost/estimate",
-                        json={
-                            "document_size_mb": doc_size,
-                            "enhancement_types": enhancement_options,
-                            "num_documents": num_docs
-                        }
-                    )
-
-                    if response.status_code == 200:
-                        estimate = response.json()
-
-                        st.success("Cost Estimate Generated")
-
-                        # Display costs
-                        st.metric("Total Cost", f"${estimate['total']['estimated_total_cost']}")
-                        st.metric("Processing Time", f"{estimate['processing_time']['total_seconds']:.0f}s")
-
-                        # Breakdown
-                        st.json(estimate)
-
-                except Exception as e:
-                    st.error(f"Failed to estimate cost: {str(e)}")
+            if st.button("🗑️ Clear Logs"):
+                st.session_state["logs"] = []
+                add_log("INFO", "Logs cleared")
+                st.rerun()
 
         with col2:
-            st.subheader("Pricing Information")
+            log_level_filter = st.selectbox(
+                "Filter Level",
+                ["All", "ERROR", "WARNING", "INFO", "SUCCESS", "DEBUG"],
+                key="log_filter"
+            )
 
-            try:
-                pricing_response = requests.get(f"{API_BASE_URL}/cost/pricing")
-                if pricing_response.status_code == 200:
-                    pricing = pricing_response.json()
-                    st.json(pricing)
-            except:
-                st.info("Pricing information unavailable")
+        with col3:
+            auto_scroll = st.checkbox("Auto-scroll", value=True)
 
+        # Display logs
+        if st.session_state["logs"]:
+            # Filter logs if needed
+            filtered_logs = st.session_state["logs"]
+            if log_level_filter != "All":
+                filtered_logs = [log for log in filtered_logs if log["level"] == log_level_filter]
 
-def create_full_report(result, document_id):
-    """Create a comprehensive report from processing results"""
-    report = {
-        "document_id": document_id,
-        "timestamp": datetime.now().isoformat(),
-        "status": result.get("status", "unknown"),
-        "processing_metrics": result.get("processing_metrics", {}),
-        "confidence_report": result.get("confidence_report", {}),
-        "extracted_text": result.get("extracted_text", ""),
-        "enhanced_text": result.get("enhanced_text", ""),
-        "corrections_made": result.get("corrections_made", []),
-        "word_count": len(result.get("extracted_text", "").split()),
-        "enhancement_applied": bool(result.get("enhanced_text", ""))
-    }
+            # Create log display
+            log_container = st.container()
+            with log_container:
+                for log in reversed(filtered_logs):  # Show newest first
+                    # Choose color based on level
+                    if log["level"] == "ERROR":
+                        color = "🔴"
+                    elif log["level"] == "WARNING":
+                        color = "🟡"
+                    elif log["level"] == "SUCCESS":
+                        color = "🟢"
+                    elif log["level"] == "DEBUG":
+                        color = "🔵"
+                    else:
+                        color = "⚪"
 
-    # Add confidence scores if available
-    if document_id:
-        try:
-            conf_response = requests.get(f"{API_BASE_URL}/documents/{document_id}/confidence")
-            if conf_response.status_code == 200:
-                conf_data = conf_response.json()
-                report["confidence_scores"] = conf_data.get("confidence_scores", {})
-                report["routing_decision"] = conf_data.get("routing", {})
-        except:
-            pass
+                    # Format log entry
+                    log_text = f"{color} **[{log['time']}] {log['level']}:** {log['message']}"
 
-    return report
+                    # Add detail if present
+                    if log.get("detail"):
+                        with st.expander(log_text, expanded=False):
+                            if isinstance(log["detail"], dict):
+                                st.json(log["detail"])
+                            else:
+                                st.code(str(log["detail"]), language="text")
+                    else:
+                        st.markdown(log_text)
+
+            # Show log count
+            st.caption(f"Showing {len(filtered_logs)} of {len(st.session_state['logs'])} logs")
+        else:
+            st.info("No logs available. Process a document to see logs.")
 
 
 if __name__ == "__main__":
