@@ -85,3 +85,6 @@ dmypy.json
 
 # Cython
 cython_debug/
+
+.specify/
+data/
