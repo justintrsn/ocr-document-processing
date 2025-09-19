@@ -55,8 +55,8 @@ class ProcessingOptions(BaseModel):
 
 class ThresholdSettings(BaseModel):
     """Threshold settings for routing decisions"""
-    image_quality_threshold: float = Field(30.0, ge=0, le=100,
-                                           description="Minimum image quality score")
+    image_quality_threshold: float = Field(60.0, ge=0, le=100,
+                                           description="Minimum image quality score to proceed with OCR")
     confidence_threshold: float = Field(80.0, ge=0, le=100,
                                        description="Minimum confidence for automatic routing")
 
@@ -76,13 +76,12 @@ class OCRRequest(BaseModel):
                     "file": "<base64_encoded_content>"
                 },
                 "processing_options": {
-                    "enable_quality_check": True,
                     "enable_ocr": True,
                     "enable_enhancement": False,
                     "return_format": "full"
                 },
                 "thresholds": {
-                    "image_quality_threshold": 30,
+                    "image_quality_threshold": 60,
                     "confidence_threshold": 80
                 },
                 "async_processing": False
