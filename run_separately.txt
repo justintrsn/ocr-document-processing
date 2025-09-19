@@ -1,0 +1,8 @@
+# Run API and Streamlit separately:
+# Terminal 1:
+source .venv/bin/activate
+python -m src.api.main
+
+# Terminal 2:
+source .venv/bin/activate
+python -m streamlit run streamlit_app.py
