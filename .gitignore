@@ -88,3 +88,5 @@ cython_debug/
 
 .specify/
 data/
+specs/
+.claude/
