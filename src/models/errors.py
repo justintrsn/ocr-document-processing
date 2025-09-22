@@ -13,6 +13,7 @@ class ErrorCode(Enum):
     FORMAT_NOT_SUPPORTED = "FORMAT_NOT_SUPPORTED"
     FORMAT_DETECTION_FAILED = "FORMAT_DETECTION_FAILED"
     FORMAT_CONVERSION_FAILED = "FORMAT_CONVERSION_FAILED"
+    MAGIC_BYTES_MISMATCH = "MAGIC_BYTES_MISMATCH"
 
     # Size and dimension errors (4xx)
     FILE_TOO_LARGE = "FILE_TOO_LARGE"
@@ -63,6 +64,7 @@ ERROR_MESSAGES: Dict[ErrorCode, str] = {
     ErrorCode.FORMAT_NOT_SUPPORTED: "The file format is not supported. Supported formats: PNG, JPG, JPEG, BMP, GIF, TIFF, WebP, PCX, ICO, PSD, PDF",
     ErrorCode.FORMAT_DETECTION_FAILED: "Unable to detect file format from the provided data",
     ErrorCode.FORMAT_CONVERSION_FAILED: "Failed to convert file format for processing",
+    ErrorCode.MAGIC_BYTES_MISMATCH: "File format does not match the expected format based on magic bytes",
 
     ErrorCode.FILE_TOO_LARGE: "File size exceeds the maximum limit of 10MB",
     ErrorCode.FILE_EMPTY: "The provided file is empty",
@@ -137,6 +139,7 @@ ERROR_STATUS_CODES: Dict[ErrorCode, int] = {
     # 415 Unsupported Media Type
     ErrorCode.FORMAT_NOT_SUPPORTED: 415,
     ErrorCode.FORMAT_DETECTION_FAILED: 415,
+    ErrorCode.MAGIC_BYTES_MISMATCH: 415,
 
     # 422 Unprocessable Entity
     ErrorCode.FILE_EMPTY: 422,
@@ -200,3 +203,16 @@ def create_error_response(
     """
     error = ProcessingError(error_code, message, details)
     return error.to_response()
+
+
+def get_http_status_for_error(error_code: ErrorCode) -> int:
+    """
+    Get HTTP status code for a given error code
+
+    Args:
+        error_code: ErrorCode enum value
+
+    Returns:
+        HTTP status code (defaults to 500 if not mapped)
+    """
+    return ERROR_STATUS_CODES.get(error_code, 500)

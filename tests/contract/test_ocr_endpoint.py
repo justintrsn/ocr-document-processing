@@ -261,12 +261,12 @@ class TestOCREndpointComplete:
             data = response.json()
             assert "job_id" in data
             assert "status" in data
-            assert data["status"] == "processing"
+            assert data["status"] == "accepted"  # Async jobs return 'accepted' status
 
     def test_return_format_minimal(self, client, sample_image_base64):
         """Test minimal return format"""
         with patch('src.api.endpoints.ocr.process_document_sync') as mock_process:
-            mock_process.return_value = self._create_mock_response()
+            mock_process.return_value = self._create_mock_response(return_format="minimal")
 
             request_data = {
                 "source": {
@@ -291,7 +291,7 @@ class TestOCREndpointComplete:
     def test_return_format_ocr_only(self, client, sample_image_base64):
         """Test OCR-only return format"""
         with patch('src.api.endpoints.ocr.process_document_sync') as mock_process:
-            mock_process.return_value = self._create_mock_response()
+            mock_process.return_value = self._create_mock_response(return_format="ocr_only")
 
             request_data = {
                 "source": {
@@ -611,7 +611,7 @@ class TestOCREndpointComplete:
         job_id = "test-job-123"
 
         # Mock the jobs storage
-        with patch('src.api.endpoints.ocr.jobs') as mock_jobs:
+        with patch('src.api.endpoints.ocr.async_jobs') as mock_jobs:
             mock_jobs.get.return_value = {
                 "status": "completed",
                 "result": self._create_mock_response(),
@@ -627,7 +627,7 @@ class TestOCREndpointComplete:
 
     def test_job_not_found(self, client):
         """Test job status for non-existent job"""
-        with patch('src.api.endpoints.ocr.jobs') as mock_jobs:
+        with patch('src.api.endpoints.ocr.async_jobs') as mock_jobs:
             mock_jobs.get.return_value = None
 
             response = client.get("/api/v1/ocr/job/non-existent-job")
@@ -675,50 +675,77 @@ class TestOCREndpointComplete:
     # Helper Methods
     # ======================
 
-    def _create_mock_response(self) -> Dict[str, Any]:
-        """Create a mock processing response"""
-        return {
-            "status": "success",
-            "format_detected": "PNG",
-            "quality_check": {
-                "performed": True,
-                "passed": True,
-                "score": 85.0,
-                "metrics": {
-                    "sharpness": 85.0,
-                    "contrast": 80.0,
-                    "resolution": 90.0
-                },
-                "issues": []
-            },
-            "ocr_result": {
-                "raw_text": "Sample OCR text",
-                "word_count": 3,
-                "confidence_score": 95.0,
-                "confidence_distribution": {
-                    "high": 3,
-                    "medium": 0,
-                    "low": 0
-                }
-            },
-            "confidence_report": {
-                "image_quality_score": 85.0,
-                "ocr_confidence_score": 95.0,
-                "final_confidence": 90.0,
-                "routing_decision": "pass",
-                "routing_reason": "All thresholds met",
-                "quality_check_passed": True,
-                "confidence_check_passed": True
-            },
-            "processing_metadata": {
-                "auto_rotation_applied": False
-            },
-            "metadata": {
-                "document_id": "doc-123",
-                "timestamp": "2025-01-19T10:00:00Z",
-                "processing_time_ms": 2500
-            }
-        }
+    def _create_mock_response(self, return_format="full") -> Any:
+        """Create a mock processing response matching the expected models"""
+        from src.models.ocr_api import (
+            OCRResponseFull, OCRResponseMinimal, OCRResponseOCROnly,
+            QualityCheckResponse, OCRResultResponse, EnhancementResponse,
+            ConfidenceReportResponse, MetadataResponse, ThresholdSettings
+        )
+        from datetime import datetime
+
+        if return_format == "minimal":
+            return OCRResponseMinimal(
+                status="success",
+                extracted_text="Sample OCR text",
+                routing_decision="pass",
+                confidence_score=90.0,
+                document_id="doc-123"
+            )
+        elif return_format == "ocr_only":
+            return OCRResponseOCROnly(
+                status="success",
+                raw_text="Sample OCR text",
+                word_count=3,
+                ocr_confidence=95.0,
+                processing_time_ms=2500,
+                document_id="doc-123"
+            )
+        else:
+            # Full response
+            quality_check = QualityCheckResponse(
+                performed=True,
+                passed=True,
+                score=85.0,
+                metrics={"sharpness": 85.0, "contrast": 80.0, "resolution": 90.0},
+                issues=[]
+            )
+
+            ocr_result = OCRResultResponse(
+                raw_text="Sample OCR text",
+                word_count=3,
+                confidence_score=95.0,
+                confidence_distribution={"high": 3, "medium": 0, "low": 0}
+            )
+
+            confidence_report = ConfidenceReportResponse(
+                image_quality_score=85.0,
+                ocr_confidence_score=95.0,
+                final_confidence=90.0,
+                thresholds_applied=ThresholdSettings(
+                    image_quality_threshold=60.0,
+                    confidence_threshold=80.0
+                ),
+                routing_decision="pass",
+                routing_reason="All thresholds met",
+                quality_check_passed=True,
+                confidence_check_passed=True
+            )
+
+            metadata = MetadataResponse(
+                document_id="doc-123",
+                timestamp=datetime.now(),
+                processing_time_ms=2500
+            )
+
+            return OCRResponseFull(
+                status="success",
+                quality_check=quality_check,
+                ocr_result=ocr_result,
+                enhancement=None,
+                confidence_report=confidence_report,
+                metadata=metadata
+            )
 
 
 if __name__ == "__main__":

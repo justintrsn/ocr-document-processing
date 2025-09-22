@@ -4,7 +4,7 @@ Unit tests for OCR Confidence Analyzer
 
 import pytest
 from src.services.ocr_confidence_analyzer import OCRConfidenceAnalyzer
-from src.models.ocr_models import OCRResponse, OCRResult, OCRDetails, WordBlock
+from src.models.ocr_models import OCRResponse, OCRResult, WordBlock
 
 
 class TestOCRConfidenceAnalyzer:
@@ -27,13 +27,9 @@ class TestOCRConfidenceAnalyzer:
             WordBlock(words="Confidence", confidence=0.45, location=[[60, 80], [200, 80], [200, 110], [60, 110]]),
         ]
 
-        ocr_details = OCRDetails(
+        ocr_result = OCRResult(
             words_block_list=words,
             direction=0.0
-        )
-
-        ocr_result = OCRResult(
-            ocr_result=ocr_details
         )
 
         return OCRResponse(result=[ocr_result])

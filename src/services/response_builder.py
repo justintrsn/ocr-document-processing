@@ -158,13 +158,16 @@ class ResponseBuilder:
 
     def _extract_quality_metrics(self, result: ProcessingResult) -> Dict[str, float]:
         """Extract quality metrics from processing result"""
-        # This would need to be stored in ProcessingResult
-        # For now, return defaults
+        # Get actual metrics from processing_metrics if available
+        if result.processing_metrics and "quality_metrics" in result.processing_metrics:
+            return result.processing_metrics["quality_metrics"]
+
+        # Fallback to reasonable defaults if metrics not available
         return {
-            "sharpness": 85.0,
-            "contrast": 80.0,
-            "resolution": 82.0,
-            "noise_level": 5.0
+            "sharpness": 75.0,
+            "contrast": 75.0,
+            "resolution": 75.0,
+            "noise_level": 25.0  # This should be normalized (100 - actual_noise)
         }
 
     def _extract_confidence_distribution(self, result: ProcessingResult) -> Dict[str, int]:

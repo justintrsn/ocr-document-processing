@@ -109,6 +109,50 @@ class FormatValidator:
         except Exception as e:
             return False, b"", f"Invalid base64: {str(e)}"
 
+    def validate_file(self, file_bytes: bytes, expected_format: str) -> Tuple[bool, Optional['ErrorCode']]:
+        """
+        Validate a file against expected format
+
+        Args:
+            file_bytes: Raw file bytes
+            expected_format: Expected format name
+
+        Returns:
+            Tuple of (is_valid, error_code or None)
+        """
+        from src.models.errors import ErrorCode
+
+        # Check if file is empty
+        if not file_bytes:
+            return False, ErrorCode.FILE_EMPTY
+
+        # Check file size
+        if not self.validate_size(file_bytes):
+            return False, ErrorCode.FILE_TOO_LARGE
+
+        # Check magic bytes
+        is_valid, detected = self.validate_magic_bytes(file_bytes)
+
+        if not is_valid:
+            return False, ErrorCode.FORMAT_DETECTION_FAILED
+
+        # Check if format matches expected
+        if detected != expected_format.upper():
+            # Handle JPEG/JPG equivalence
+            if not (expected_format.upper() in ['JPEG', 'JPG'] and detected in ['JPEG', 'JPG']):
+                return False, ErrorCode.MAGIC_BYTES_MISMATCH
+
+        # For images, check dimensions
+        if expected_format.upper() in ['PNG', 'JPG', 'JPEG', 'BMP', 'GIF', 'TIFF', 'WEBP', 'ICO']:
+            try:
+                image = Image.open(io.BytesIO(file_bytes))
+                if not self.validate_dimensions(image):
+                    return False, ErrorCode.DIMENSIONS_INVALID
+            except:
+                return False, ErrorCode.IMAGE_CORRUPTED
+
+        return True, None
+
 
 class ImageFormatValidator(FormatValidator):
     """Specific validator for image formats"""

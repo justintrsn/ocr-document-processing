@@ -2,7 +2,7 @@
 
 ## Overview
 
-The OCR Document Processing API provides a unified endpoint for document analysis with quality assessment, OCR extraction, and optional LLM enhancement. The system implements a dual-threshold routing system for automatic quality control.
+The OCR Document Processing API provides a comprehensive endpoint for document analysis with quality assessment, preprocessing, OCR extraction, and optional LLM enhancement. The system supports **11 file formats** and implements a dual-threshold routing system for automatic quality control.
 
 ## Base URL
 
@@ -14,7 +14,15 @@ http://localhost:8000
 
 Currently, no authentication is required. In production, implement API key or OAuth2 authentication.
 
-## Endpoints
+## Supported File Formats
+
+The API natively supports the following 11 formats through Huawei Cloud OCR:
+- **Images**: PNG, JPG, JPEG, BMP, GIF, TIFF, WebP, PCX, ICO, PSD
+- **Documents**: PDF
+
+All formats are processed directly without conversion.
+
+## Main Endpoints
 
 ### 1. Process Document
 
@@ -33,7 +41,8 @@ Currently, no authentication is required. In production, implement API key or OA
   },
   "processing_options": {
     "enable_ocr": true,                // Default: true
-    "enable_enhancement": false,       // Default: false
+    "enable_enhancement": false,       // Default: false (LLM enhancement)
+    "enable_preprocessing": true,      // Default: true (image preprocessing)
     "return_format": "full"            // Options: "full", "minimal", "ocr_only"
   },
   "thresholds": {
@@ -43,6 +52,16 @@ Currently, no authentication is required. In production, implement API key or OA
   "async_processing": false            // Default: false
 }
 ```
+
+#### Query Parameters (Optional)
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `page_number` | Integer | Specific page number for PDF processing (1-indexed) |
+| `process_all_pages` | Boolean | Process all pages for PDF (default: false) |
+| `auto_rotation` | Boolean | Apply automatic rotation detection (default: true) |
+| `format_validation` | Boolean | Validate file format before processing (default: true) |
+| `preprocessing_quality_threshold` | Float | Override quality threshold for preprocessing |
 
 #### Request Parameters
 
@@ -55,6 +74,7 @@ Currently, no authentication is required. In production, implement API key or OA
 | `processing_options` | Object | No | Processing configuration |
 | `processing_options.enable_ocr` | Boolean | No | Enable OCR extraction (default: true) |
 | `processing_options.enable_enhancement` | Boolean | No | Enable LLM enhancement (default: false) |
+| `processing_options.enable_preprocessing` | Boolean | No | Enable preprocessing for quality improvement (default: true) |
 | `processing_options.return_format` | String | No | Response format: "full", "minimal", or "ocr_only" (default: "full") |
 | `thresholds` | Object | No | Threshold settings |
 | `thresholds.image_quality_threshold` | Float | No | Minimum quality to proceed with OCR (default: 60) |
@@ -171,106 +191,168 @@ Currently, no authentication is required. In production, implement API key or OA
 
 ```json
 {
-  "detail": "Error message describing the issue"
+  "detail": {
+    "error_code": "FORMAT_NOT_SUPPORTED",
+    "message": "Format validation failed",
+    "format_detected": "XYZ"
+  }
 }
 ```
 
 Common error codes:
 - `400` - Invalid request (bad base64, missing required fields)
+- `413` - Payload too large (file exceeds 10MB)
+- `415` - Unsupported media type (format not supported)
 - `422` - Validation error (invalid parameter values)
 - `500` - Internal server error
 
-### 2. Get Async Job Status
+### 2. Preprocessing Endpoint
+
+**Endpoint**: `POST /api/v1/preprocess`
+
+**Description**: Preprocesses a document to improve OCR quality.
+
+#### Request Body
+
+```json
+{
+  "source_type": "file",
+  "file_data": "base64_encoded_string",
+  "quality_threshold": 80.0,
+  "save_to_obs": false
+}
+```
+
+### 3. Format Validation
+
+**Endpoint**: `POST /api/v1/ocr/validate-format`
+
+**Description**: Validates file format and returns capabilities.
+
+#### Request
+
+Multipart form data with file upload.
+
+#### Response
+
+```json
+{
+  "format_detected": "PDF",
+  "is_supported": true,
+  "validation_errors": null,
+  "capabilities": {
+    "can_extract_text": true,
+    "can_extract_tables": true,
+    "can_extract_kv_pairs": true,
+    "supports_rotation": true,
+    "multi_page": true
+  }
+}
+```
+
+### 4. Supported Formats List
+
+**Endpoint**: `GET /api/v1/ocr/supported-formats`
+
+**Description**: Get list of all supported formats with their capabilities.
+
+#### Response
+
+```json
+{
+  "supported_formats": ["PNG", "JPG", "JPEG", "BMP", "GIF", "TIFF", "WebP", "PCX", "ICO", "PSD", "PDF"],
+  "total_formats": 11,
+  "format_details": {
+    "PNG": {
+      "can_extract_text": true,
+      "can_extract_tables": true,
+      "can_extract_kv_pairs": true,
+      "supports_rotation": true,
+      "multi_page": false
+    },
+    "PDF": {
+      "can_extract_text": true,
+      "can_extract_tables": true,
+      "can_extract_kv_pairs": true,
+      "supports_rotation": true,
+      "multi_page": true
+    }
+  }
+}
+```
+
+### 5. Batch Processing
+
+**Endpoint**: `POST /api/v1/batch`
+
+**Description**: Process multiple documents (up to 20) in a single request.
+
+### 6. Processing History
+
+**Endpoint**: `GET /api/v1/ocr/history/{document_id}`
+
+**Description**: Retrieve processing history for a document (stored for 7 days).
+
+### 7. Async Job Status
 
 **Endpoint**: `GET /api/v1/ocr/job/{job_id}`
 
 **Description**: Retrieves the status and results of an asynchronous OCR job.
 
-#### Path Parameters
-
-| Parameter | Type | Required | Description |
-|-----------|------|----------|-------------|
-| `job_id` | String | Yes | The job ID returned from async processing |
-
-#### Response
-
-```json
-{
-  "job_id": "job_xyz789ghi012",
-  "status": "completed",  // Options: "pending", "processing", "completed", "failed"
-  "progress_percentage": 100,
-  "result": {
-    // Full OCR response object when completed
-  },
-  "error": null
-}
-```
-
-### 3. Health Check
+### 8. Health Check
 
 **Endpoint**: `GET /health`
 
 **Description**: Check API health status.
 
-#### Response
+## Processing Pipeline
 
-```json
-{
-  "status": "healthy",
-  "timestamp": "2025-01-19T10:30:00Z"
-}
+### Complete Flow
+
+```
+Document Input → Format Detection → Quality Check → Preprocessing → OCR → LLM Enhancement → Response
 ```
 
-## Processing Logic
+### Stage Details
 
-### Quality Gate
+1. **Format Detection**: Validates file format (11 supported formats)
+2. **Quality Check**: Always performed first, scores image quality
+3. **Preprocessing** (Optional): Applied if quality < threshold and enabled
+   - Noise reduction
+   - Contrast enhancement
+   - Rotation correction
+   - Sharpening
+4. **OCR Processing**: Huawei Cloud OCR extracts text
+5. **LLM Enhancement** (Optional): Improves text quality with AI
+6. **Routing Decision**: Determines if manual review is needed
 
-1. **Quality Check**: Always performed first
-2. **Gate Decision**: If quality score < `image_quality_threshold`, OCR is skipped
-3. **Result**: Quality metrics are always included in response
+### PDF Processing
 
-### OCR Processing
-
-1. **Conditional**: Only if quality check passes and `enable_ocr=true`
-2. **Confidence Analysis**: Calculates word-level confidence distribution
-3. **Result**: Extracted text with confidence metrics
-
-### LLM Enhancement
-
-1. **Optional**: Only if `enable_enhancement=true`
-2. **Comprehensive**: Single LLM call for all improvements
-3. **Corrections**: Spelling, grammar, punctuation, context
-4. **Performance**: Typically 20-30 seconds
-
-### Routing Decision
-
-The system uses a dual-threshold system:
-
-1. **Quality Check**: `image_quality_score >= image_quality_threshold`
-2. **Confidence Check**: `final_confidence >= confidence_threshold`
-3. **Final Confidence**: Calculated as weighted average:
-   - Image Quality: 50%
-   - OCR Confidence: 50%
-
-**Routing Results**:
-- `"pass"`: Both thresholds met, automatic processing
-- `"requires_review"`: One or both thresholds not met, manual review needed
+PDFs are processed as complete documents by Huawei OCR:
+- **Default**: Process entire PDF
+- **Page-specific**: Use `page_number` parameter
+- **Note**: Huawei OCR processes the complete PDF regardless of page parameter
 
 ## Usage Examples
 
-### Example 1: Quick OCR (No Enhancement)
+### Example 1: Quick OCR with Preprocessing
 
 ```bash
+# Encode file
+IMAGE_BASE64=$(base64 -w 0 document.jpg)
+
+# Send request
 curl -X POST http://localhost:8000/api/v1/ocr \
   -H "Content-Type: application/json" \
   -d '{
     "source": {
       "type": "file",
-      "file": "'"$(base64 -w 0 document.jpg)"'"
+      "file": "'"$IMAGE_BASE64"'"
     },
     "processing_options": {
       "enable_ocr": true,
       "enable_enhancement": false,
+      "enable_preprocessing": true,
       "return_format": "ocr_only"
     },
     "thresholds": {
@@ -280,19 +362,20 @@ curl -X POST http://localhost:8000/api/v1/ocr \
   }'
 ```
 
-### Example 2: Full Processing with Enhancement
+### Example 2: Full Processing with All Features
 
 ```bash
 curl -X POST http://localhost:8000/api/v1/ocr \
   -H "Content-Type: application/json" \
   -d '{
     "source": {
-      "type": "obs_url",
-      "obs_url": "obs://my-bucket/documents/scan.pdf"
+      "type": "file",
+      "file": "'"$(base64 -w 0 document.pdf)"'"
     },
     "processing_options": {
       "enable_ocr": true,
       "enable_enhancement": true,
+      "enable_preprocessing": true,
       "return_format": "full"
     },
     "thresholds": {
@@ -302,60 +385,102 @@ curl -X POST http://localhost:8000/api/v1/ocr \
   }'
 ```
 
-### Example 3: Python Client
+### Example 3: Test Different Formats
+
+```bash
+# Test PNG
+curl -X POST http://localhost:8000/api/v1/ocr \
+  -H "Content-Type: application/json" \
+  -d '{"source": {"type": "file", "file": "'"$(base64 -w 0 image.png)"'"}}'
+
+# Test PDF with specific page
+curl -X POST "http://localhost:8000/api/v1/ocr?page_number=2" \
+  -H "Content-Type: application/json" \
+  -d '{"source": {"type": "file", "file": "'"$(base64 -w 0 document.pdf)"'"}}'
+
+# Test TIFF with preprocessing disabled
+curl -X POST http://localhost:8000/api/v1/ocr \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"type": "file", "file": "'"$(base64 -w 0 document.tiff)"'"},
+    "processing_options": {"enable_preprocessing": false}
+  }'
+```
+
+### Example 4: Python Client
 
 ```python
 import requests
 import base64
+from pathlib import Path
 
-# Read and encode image
-with open('document.jpg', 'rb') as f:
-    file_base64 = base64.b64encode(f.read()).decode('utf-8')
+def process_document(file_path, enable_enhancement=False):
+    """Process any supported document format"""
 
-# Prepare request
-request_data = {
-    'source': {
-        'type': 'file',
-        'file': file_base64
-    },
-    'processing_options': {
-        'enable_ocr': True,
-        'enable_enhancement': True,
-        'return_format': 'full'
-    },
-    'thresholds': {
-        'image_quality_threshold': 60,
-        'confidence_threshold': 80
+    # Read and encode file
+    with open(file_path, 'rb') as f:
+        file_base64 = base64.b64encode(f.read()).decode('utf-8')
+
+    # Prepare request
+    request_data = {
+        'source': {
+            'type': 'file',
+            'file': file_base64
+        },
+        'processing_options': {
+            'enable_ocr': True,
+            'enable_enhancement': enable_enhancement,
+            'enable_preprocessing': True,
+            'return_format': 'full'
+        },
+        'thresholds': {
+            'image_quality_threshold': 60,
+            'confidence_threshold': 80
+        }
     }
-}
 
-# Send request
-response = requests.post('http://localhost:8000/api/v1/ocr', json=request_data)
-result = response.json()
+    # Send request
+    response = requests.post('http://localhost:8000/api/v1/ocr', json=request_data)
+    result = response.json()
 
-# Process result
-if result['status'] == 'success':
-    print(f"Extracted text: {result['ocr_result']['raw_text']}")
-    print(f"Confidence: {result['confidence_report']['final_confidence']}%")
-    print(f"Routing: {result['confidence_report']['routing_decision']}")
+    # Process result
+    if result['status'] == 'success':
+        print(f"Format detected: {file_path.suffix.upper()}")
+        print(f"Quality score: {result.get('quality_check', {}).get('score', 0):.1f}")
+        print(f"Word count: {result.get('ocr_result', {}).get('word_count', 0)}")
+        print(f"Confidence: {result['confidence_report']['final_confidence']:.1f}%")
+        print(f"Routing: {result['confidence_report']['routing_decision']}")
+
+    return result
+
+# Test different formats
+for file_path in Path('tests/documents').glob('*'):
+    if file_path.suffix.lower() in ['.png', '.jpg', '.pdf', '.tiff']:
+        print(f"\nProcessing {file_path.name}...")
+        process_document(file_path)
 ```
 
 ## Performance Guidelines
 
 ### Processing Times
 
-- **Quality Check**: < 1 second
-- **OCR Processing**: 1-6 seconds (depends on document complexity)
-- **LLM Enhancement**: 20-30 seconds
-- **Total (with enhancement)**: 25-35 seconds
-- **Total (without enhancement)**: 2-7 seconds
+| Stage | Time | Notes |
+|-------|------|-------|
+| Format Detection | < 0.1s | Magic byte detection |
+| Quality Check | < 1s | OpenCV analysis |
+| Preprocessing | 1-3s | When needed |
+| OCR Processing | 2-10s | Depends on document |
+| LLM Enhancement | 20-30s | Optional, AI-powered |
+| **Total (without LLM)** | 3-14s | Typical range |
+| **Total (with LLM)** | 23-44s | Full pipeline |
 
 ### Optimization Tips
 
 1. **Skip Enhancement**: For faster processing, set `enable_enhancement=false`
-2. **Lower Quality Threshold**: Reduce `image_quality_threshold` for poor quality documents
-3. **Async Processing**: Use `async_processing=true` for large batches
-4. **Minimal Format**: Use `return_format="minimal"` for reduced payload size
+2. **Disable Preprocessing**: If document quality is good, set `enable_preprocessing=false`
+3. **Lower Quality Threshold**: Reduce `image_quality_threshold` for poor quality documents
+4. **Async Processing**: Use `async_processing=true` for large batches
+5. **Minimal Format**: Use `return_format="minimal"` for reduced payload size
 
 ## Error Handling
 
@@ -365,23 +490,52 @@ if result['status'] == 'success':
    - Error: "Invalid base64 file data"
    - Solution: Ensure proper base64 encoding without line breaks
 
-2. **OBS Access Error**
-   - Error: "Failed to access OBS URL"
-   - Solution: Check bucket permissions and URL format
+2. **Unsupported Format**
+   - Error: "Format XYZ is not supported"
+   - Solution: Check supported formats list
 
-3. **Quality Too Low**
+3. **File Too Large**
+   - Error: "File exceeds size limit"
+   - Solution: Compress or resize images (max 10MB)
+
+4. **Quality Too Low**
    - Response: Quality check fails, OCR skipped
    - Solution: Lower `image_quality_threshold` or improve image quality
 
-4. **Timeout**
-   - Error: "Processing timeout"
-   - Solution: Use async processing for large documents
+## Testing
 
-## Rate Limits
+### Quick Test Script
 
-- Development: No limits
-- Production: Implement rate limiting based on requirements
-- Recommended: 10 requests per second per client
+```bash
+# Save as test_api.sh
+#!/bin/bash
+
+# Test with local JPG
+IMAGE_BASE64=$(base64 -w 0 tests/documents/scanned_document.jpg)
+
+curl -X POST http://localhost:8000/api/v1/ocr \
+  -H "Content-Type: application/json" \
+  -d '{
+    "source": {"type": "file", "file": "'"$IMAGE_BASE64"'"},
+    "processing_options": {
+      "enable_ocr": true,
+      "enable_preprocessing": true,
+      "return_format": "minimal"
+    }
+  }' | python3 -m json.tool
+```
+
+### Integration Testing
+
+Run comprehensive tests:
+
+```bash
+# Test all pipeline configurations
+pytest tests/integration/test_complete_pipeline.py -v
+
+# Test with real documents
+python tests/integration/test_complete_pipeline.py --api
+```
 
 ## Monitoring
 
@@ -389,8 +543,9 @@ if result['status'] == 'success':
 
 1. **Response Time**: Monitor P50, P95, P99 latencies
 2. **Error Rate**: Track 4xx and 5xx errors
-3. **Routing Distribution**: Monitor pass vs manual review ratio
-4. **Enhancement Usage**: Track LLM usage for cost optimization
+3. **Format Distribution**: Track usage by file format
+4. **Preprocessing Impact**: Monitor quality improvements
+5. **Routing Distribution**: Monitor pass vs manual review ratio
 
 ### Health Monitoring
 
@@ -414,6 +569,14 @@ For issues or questions:
 - Logs: Available in Streamlit demo interface
 
 ## Changelog
+
+### Version 1.1 (2025-09-22)
+- Added support for 11 file formats (PNG, JPG, JPEG, BMP, GIF, TIFF, WebP, PCX, ICO, PSD, PDF)
+- Added preprocessing pipeline with OpenCV
+- PDF page-by-page processing support
+- Format validation endpoint
+- Processing history (7-day retention)
+- Batch processing endpoint (up to 20 files)
 
 ### Version 1.0 (2025-01-19)
 - Initial release with unified OCR endpoint

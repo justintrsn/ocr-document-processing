@@ -187,8 +187,19 @@ class PDFProcessingResult(BaseModel):
             "document_id": self.document_id,
             "total_pages": self.total_pages,
             "summary": self.get_summary(),
-            "page_results": {}
+            "page_results": {},
+            # Add fields expected by ocr endpoint
+            "successful_pages": len(self.successful_pages),
+            "failed_pages": self.failed_pages,
+            "average_confidence": self.average_confidence,
+            "total_word_count": self.total_word_count
         }
+
+        # Add error field if there are failures
+        if self.status == "failed" and self.page_errors:
+            # Get first error message for general error field
+            first_error = next(iter(self.page_errors.values()), "Processing failed")
+            response["error"] = first_error
 
         # Include page results
         for page_num, result in self.page_results.items():

@@ -151,6 +151,39 @@ class BatchJob(BaseModel):
             "completed_at": self.completed_at.isoformat() if self.completed_at else None
         }
 
+    def add_error(self, document_id: str, error: ErrorDetail):
+        """Add error for a document"""
+        self.errors[document_id] = error
+        self.failed_documents += 1
+        self.processed_documents += 1
+
+        # Check if all documents are processed
+        if self.processed_documents >= self.total_documents:
+            self.complete_processing()
+
+    def complete(self):
+        """Alias for complete_processing for compatibility"""
+        self.complete_processing()
+
+    def to_response(self) -> Dict[str, Any]:
+        """Convert to API response format"""
+        processing_time_ms = None
+        if self.started_at and self.completed_at:
+            processing_time_ms = int((self.completed_at - self.started_at).total_seconds() * 1000)
+
+        return {
+            "job_id": self.job_id,
+            "status": self.status.value,
+            "total_documents": self.total_documents,
+            "successful_documents": self.successful_documents,
+            "failed_documents": self.failed_documents,
+            "document_results": {doc_id: result.dict() if hasattr(result, 'dict') else result for doc_id, result in self.results.items()},
+            "document_errors": {doc_id: error.dict() if hasattr(error, 'dict') else error for doc_id, error in self.errors.items()},
+            "processing_time_ms": processing_time_ms,
+            "started_at": self.started_at.isoformat() if self.started_at else None,
+            "completed_at": self.completed_at.isoformat() if self.completed_at else None
+        }
+
     def get_multi_status_response(self) -> Dict[str, Any]:
         """
         Get 207 Multi-Status response format

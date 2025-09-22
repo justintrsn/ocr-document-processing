@@ -26,6 +26,10 @@ class FileFormat(str, Enum):
 class SupportedFormat:
     """
     Definition of a supported file format with constraints and metadata
+
+    Preprocessing Groups:
+    - needs_preprocessing=True: PNG, JPG/JPEG, PDF - Apply quality assessment and preprocessing
+    - needs_preprocessing=False: BMP, GIF, TIFF, WebP, ICO, PCX, PSD - Pass directly to Huawei OCR
     """
     format_name: str
     extensions: List[str]
@@ -36,6 +40,7 @@ class SupportedFormat:
     max_dimension: int = 30000
     supports_multi_page: bool = False
     requires_special_converter: bool = False
+    needs_preprocessing: bool = False  # New field to indicate preprocessing requirement
 
     def validate_size(self, file_size_bytes: int) -> bool:
         """Validate file size against format constraints"""
@@ -61,19 +66,22 @@ SUPPORTED_FORMATS = {
         format_name="PNG",
         extensions=[".png"],
         mime_types=["image/png"],
-        magic_bytes=b"\x89PNG\r\n\x1a\n"
+        magic_bytes=b"\x89PNG\r\n\x1a\n",
+        needs_preprocessing=True  # PNG gets preprocessing
     ),
     FileFormat.JPG: SupportedFormat(
         format_name="JPG",
         extensions=[".jpg", ".jpeg"],
         mime_types=["image/jpeg"],
-        magic_bytes=b"\xff\xd8\xff"
+        magic_bytes=b"\xff\xd8\xff",
+        needs_preprocessing=True  # JPG gets preprocessing
     ),
     FileFormat.JPEG: SupportedFormat(
         format_name="JPEG",
         extensions=[".jpeg", ".jpg"],
         mime_types=["image/jpeg"],
-        magic_bytes=b"\xff\xd8\xff"
+        magic_bytes=b"\xff\xd8\xff",
+        needs_preprocessing=True  # JPEG gets preprocessing
     ),
     FileFormat.BMP: SupportedFormat(
         format_name="BMP",
@@ -124,7 +132,8 @@ SUPPORTED_FORMATS = {
         mime_types=["application/pdf"],
         magic_bytes=b"%PDF",
         supports_multi_page=True,
-        requires_special_converter=True
+        requires_special_converter=False,  # No conversion needed, Huawei handles PDFs natively
+        needs_preprocessing=True  # PDF gets quality assessment (but not actual preprocessing)
     )
 }
 
@@ -162,3 +171,16 @@ def is_format_supported(format_name: str) -> bool:
         return True
     except ValueError:
         return False
+
+
+def get_format_definition(format_type: FileFormat) -> Optional[SupportedFormat]:
+    """
+    Get format definition for a given format type
+
+    Args:
+        format_type: FileFormat enum value
+
+    Returns:
+        SupportedFormat definition or None
+    """
+    return SUPPORTED_FORMATS.get(format_type)

@@ -18,7 +18,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # API Configuration - can be overridden by environment variable
-API_BASE_URL = os.getenv("OCR_API_URL", "http://188.239.9.105:8000")
+API_BASE_URL = os.getenv("OCR_API_URL", "http://localhost:8000")
 
 # Page configuration
 st.set_page_config(
@@ -106,7 +106,7 @@ def main():
             st.success("✅ API Connected")
         else:
             st.error("❌ API Offline - Start the API server first")
-            st.code("python -m uvicorn src.api.main:app --reload", language="bash")
+            st.code("python -m src.api.main", language="bash")
 
         st.divider()
 
@@ -116,6 +116,10 @@ def main():
         # OCR Processing
         enable_ocr = st.checkbox("Enable OCR Processing", value=True,
             help="Perform OCR extraction (automatically skipped if quality is below threshold)")
+
+        # Preprocessing - NEW!
+        enable_preprocessing = st.checkbox("Enable Preprocessing", value=True,
+            help="Apply image preprocessing to improve OCR quality (works for all 11 supported formats including PDFs)")
 
         # Enhancement
         enable_enhancement = st.checkbox("Enable LLM Enhancement", value=False,
@@ -166,12 +170,13 @@ def main():
         - Flexible configuration options
         - Quality check always performed
         - OCR skipped if quality too low
+        - Optional preprocessing enhancement
         - Optional LLM enhancement
         - Dual threshold system
         """)
 
     # Main Content
-    tabs = st.tabs(["📤 Upload & Process", "📊 Results", "🔍 Raw Response", "📈 Analytics", "📋 Logs"])
+    tabs = st.tabs(["📤 Upload & Process", "🔄 Batch Processing", "📊 Results", "🔍 Raw Response", "📈 Analytics", "📋 Logs"])
 
     # Upload & Process Tab
     with tabs[0]:
@@ -187,10 +192,13 @@ def main():
             obs_url = None
 
             if upload_method == "File Upload":
+                # Show supported formats - NEW!
+                st.info("📋 **Supported Formats:** PNG, JPG, JPEG, BMP, GIF, TIFF, WebP, PCX, ICO, PSD, PDF")
+
                 document_file = st.file_uploader(
                     "Choose a document",
-                    type=["jpg", "jpeg", "png", "pdf"],
-                    help="Upload a document for processing"
+                    type=["jpg", "jpeg", "png", "pdf", "bmp", "gif", "tiff", "webp", "pcx", "ico", "psd"],
+                    help="Upload a document for processing (11 formats supported natively by Huawei OCR)"
                 )
 
                 if document_file:
@@ -219,6 +227,7 @@ def main():
                             request_data = {
                                 "processing_options": {
                                     "enable_ocr": enable_ocr,
+                                    "enable_preprocessing": enable_preprocessing,  # NEW!
                                     "enable_enhancement": enable_enhancement,
                                     "return_format": return_format
                                 },
@@ -261,6 +270,15 @@ def main():
                                 st.session_state["result"] = result
                                 st.session_state["processing_time"] = elapsed_time
 
+                                # Debug logging
+                                add_log("DEBUG", "Response received", {
+                                    "status": result.get("status"),
+                                    "has_quality_check": "quality_check" in result,
+                                    "quality_score": result.get("quality_check", {}).get("score", "N/A") if result.get("quality_check") else "N/A",
+                                    "has_ocr_result": "ocr_result" in result,
+                                    "has_confidence_report": "confidence_report" in result
+                                })
+
                                 if async_processing and "job_id" in result:
                                     # Handle async response
                                     st.success(f"✅ Job submitted: {result['job_id']}")
@@ -287,6 +305,8 @@ def main():
                                             if "quality_check" in result and result["quality_check"]:
                                                 quality_score = result["quality_check"].get("score", 0)
                                                 st.metric("Quality Score", f"{quality_score:.1f}")
+                                            else:
+                                                st.metric("Quality Score", "N/A")
 
                                         with col2:
                                             if "ocr_result" in result and result["ocr_result"]:
@@ -329,28 +349,47 @@ def main():
                     st.subheader("📷 Quality Check")
                     qc = result["quality_check"]
 
-                    if qc.get("passed"):
-                        st.success(f"✅ Passed (Score: {qc.get('score', 0):.1f})")
+                    score = qc.get("score", 0)
+                    if score and qc.get("passed"):
+                        st.success(f"✅ Passed (Score: {score:.1f})")
+                    elif score:
+                        st.error(f"❌ Failed (Score: {score:.1f})")
                     else:
-                        st.error(f"❌ Failed (Score: {qc.get('score', 0):.1f})")
+                        st.warning(f"⚠️ Quality check performed but no score available")
 
                     # Show metrics
-                    if "metrics" in qc:
+                    if "metrics" in qc and qc["metrics"]:
                         for metric, value in qc["metrics"].items():
-                            st.progress(value / 100)
-                            st.caption(f"{metric}: {value:.1f}")
+                            if value is not None:
+                                st.progress(min(value / 100, 1.0))  # Ensure value is between 0 and 1
+                                st.caption(f"{metric}: {value:.1f}")
 
                 st.divider()
 
                 # Confidence Report
-                if "confidence_report" in result:
+                if "confidence_report" in result and result["confidence_report"]:
                     st.subheader("🎯 Confidence Report")
                     cr = result["confidence_report"]
 
                     # Show scores
-                    st.metric("Image Quality", f"{cr.get('image_quality_score', 0):.1f}")
-                    st.metric("OCR Confidence", f"{cr.get('ocr_confidence_score', 0):.1f}")
-                    st.metric("**Final Confidence**", f"{cr.get('final_confidence', 0):.1f}%")
+                    img_quality = cr.get('image_quality_score', 0)
+                    ocr_conf = cr.get('ocr_confidence_score', 0)
+                    final_conf = cr.get('final_confidence', 0)
+
+                    if img_quality:
+                        st.metric("Image Quality", f"{img_quality:.1f}")
+                    else:
+                        st.metric("Image Quality", "N/A")
+
+                    if ocr_conf:
+                        st.metric("OCR Confidence", f"{ocr_conf:.1f}")
+                    else:
+                        st.metric("OCR Confidence", "N/A")
+
+                    if final_conf:
+                        st.metric("**Final Confidence**", f"{final_conf:.1f}%")
+                    else:
+                        st.metric("**Final Confidence**", "N/A")
 
                     # Routing decision
                     routing = cr.get("routing_decision", "unknown")
@@ -359,11 +398,214 @@ def main():
                     else:
                         st.warning(f"⚠️ {cr.get('routing_reason', 'Manual review required')}")
 
-    # Results Tab
+    # Batch Processing Tab - NEW!
     with tabs[1]:
+        st.header("🔄 Batch Processing")
+        st.markdown("Process multiple files at once with parallel processing")
+
+        # Batch file upload
+        batch_files = st.file_uploader(
+            "Choose multiple documents",
+            type=["jpg", "jpeg", "png", "pdf", "bmp", "gif", "tiff", "webp", "pcx", "ico", "psd"],
+            accept_multiple_files=True,
+            help="Select multiple files to process in batch"
+        )
+
+        if batch_files:
+            st.info(f"📁 {len(batch_files)} files selected for batch processing")
+
+            # Display file list
+            file_info = []
+            for file in batch_files:
+                file_info.append({
+                    "File Name": file.name,
+                    "Type": file.type,
+                    "Size": f"{file.size / 1024:.2f} KB"
+                })
+            st.dataframe(pd.DataFrame(file_info))
+
+            if st.button("🚀 Process Batch", type="primary", use_container_width=True):
+                with st.spinner(f"Processing {len(batch_files)} files..."):
+                    try:
+                        # Prepare batch request matching the API's expected format
+                        documents = []
+                        for i, file in enumerate(batch_files):
+                            file_content = file.read()
+                            documents.append({
+                                "document_id": f"{file.name}_{i}",
+                                "file_data": encode_file_to_base64(file_content),
+                                "filename": file.name
+                            })
+
+                        batch_request = {
+                            "documents": documents,
+                            "fail_fast": False,
+                            "auto_rotation": True,
+                            "enhance_quality": enable_enhancement,
+                            "timeout_per_document": 60
+                        }
+
+                        # Debug: Show the exact URL being called
+                        batch_url = f"{API_BASE_URL}/api/v1/batch"
+                        st.info(f"🔍 Calling batch endpoint: {batch_url}")
+                        add_log("DEBUG", f"Batch API URL: {batch_url}")
+
+                        # Make batch API request
+                        start_time = time.time()
+                        response = requests.post(
+                            batch_url,
+                            json=batch_request,
+                            headers={"Content-Type": "application/json"},
+                            timeout=300  # 5 minute timeout for batch processing
+                        )
+                        elapsed_time = time.time() - start_time
+
+                        if response.status_code in [200, 207]:  # 207 is Multi-Status for batch
+                            batch_result = response.json()
+                            st.success(f"✅ Batch processing completed: {batch_result.get('successful_documents', 0)}/{batch_result.get('total_documents', len(batch_files))} files processed")
+
+                            # Display results
+                            results = batch_result.get("results", {})
+                            errors = batch_result.get("errors", {})
+
+                            # Store batch results for download
+                            batch_texts = {}
+
+                            for doc in documents:
+                                doc_id = doc["document_id"]
+                                with st.expander(f"📄 {doc['filename']}", expanded=True):
+                                    if doc_id in results and results[doc_id].get("status") == "success":
+                                        st.success("✅ Processed successfully")
+
+                                        # Get the OCR text (field name is 'ocr_text' from ProcessingResult model)
+                                        extracted_text = results[doc_id].get("ocr_text", "") or results[doc_id].get("text", "")
+
+                                        if extracted_text:
+                                            # Display metrics
+                                            col1, col2, col3 = st.columns(3)
+                                            with col1:
+                                                word_count = len(extracted_text.split())
+                                                st.metric("Words", word_count)
+                                            with col2:
+                                                confidence = results[doc_id].get("confidence_score", 0) or results[doc_id].get("confidence", 0)
+                                                st.metric("Confidence", f"{confidence:.1f}%")
+                                            with col3:
+                                                processing_time = results[doc_id].get("processing_time_ms", 0)
+                                                if processing_time:
+                                                    st.metric("Time", f"{processing_time/1000:.2f}s")
+
+                                            # Display the extracted text
+                                            st.text_area(
+                                                "📝 Extracted Text",
+                                                extracted_text,
+                                                height=200,
+                                                key=f"batch_text_{doc_id}"
+                                            )
+
+                                            # Store for combined download
+                                            batch_texts[doc['filename']] = extracted_text
+
+                                            # Individual download button
+                                            st.download_button(
+                                                "📥 Download Text",
+                                                extracted_text,
+                                                file_name=f"{doc['filename']}.txt",
+                                                mime="text/plain",
+                                                key=f"download_{doc_id}"
+                                            )
+                                        else:
+                                            st.warning("⚠️ No text extracted from this document")
+
+                                    elif doc_id in errors:
+                                        st.error(f"❌ Failed: {errors[doc_id].get('error_message', errors[doc_id].get('error', 'Unknown error'))}")
+                                        if "details" in errors[doc_id]:
+                                            st.json(errors[doc_id]["details"])
+                                    else:
+                                        st.warning("⚠️ No result available")
+
+                            # Add combined download for all successful results
+                            if batch_texts:
+                                st.divider()
+                                combined_text = "\n\n" + "="*50 + "\n\n".join([
+                                    f"FILE: {filename}\n{'-'*40}\n{text}"
+                                    for filename, text in batch_texts.items()
+                                ])
+                                st.download_button(
+                                    "📥 Download All Results (Combined)",
+                                    combined_text,
+                                    file_name=f"batch_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                                    mime="text/plain",
+                                    type="primary",
+                                    use_container_width=True
+                                )
+
+                            # Store batch results in session state for other tabs
+                            st.session_state["batch_result"] = batch_result
+                            st.session_state["batch_texts"] = batch_texts
+                            st.session_state["batch_processing_time"] = elapsed_time
+                        else:
+                            error_msg = response.text[:500]
+                            st.error(f"Batch processing failed ({response.status_code}): {error_msg}")
+                            add_log("ERROR", f"Batch API error: {response.status_code}", error_msg)
+
+                    except requests.exceptions.Timeout:
+                        st.error("⏱️ Batch processing timed out. Please try with fewer files.")
+                    except Exception as e:
+                        st.error(f"Error: {str(e)}")
+                        add_log("ERROR", f"Batch processing exception: {str(e)}")
+
+    # Results Tab (now tab 2)
+    with tabs[2]:
         st.header("Processing Results")
 
-        if "result" in st.session_state and st.session_state["result"].get("status") == "success":
+        # Check if we have batch results
+        if "batch_result" in st.session_state and "batch_texts" in st.session_state:
+            st.info("📦 Showing Batch Processing Results")
+
+            batch_result = st.session_state["batch_result"]
+            batch_texts = st.session_state["batch_texts"]
+
+            # Summary metrics
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                st.metric("Total Files", batch_result.get("total_documents", 0))
+            with col2:
+                st.metric("Successful", batch_result.get("successful_documents", 0))
+            with col3:
+                st.metric("Failed", batch_result.get("failed_documents", 0))
+            with col4:
+                if "batch_processing_time" in st.session_state:
+                    st.metric("Processing Time", f"{st.session_state['batch_processing_time']:.2f}s")
+
+            st.divider()
+
+            # Display each document's results
+            for filename, text in batch_texts.items():
+                with st.expander(f"📄 {filename}", expanded=False):
+                    st.text_area(
+                        "Extracted Text",
+                        text,
+                        height=300,
+                        key=f"batch_result_text_{filename}"
+                    )
+                    word_count = len(text.split())
+                    st.caption(f"Word Count: {word_count}")
+
+            # Combined download button
+            if batch_texts:
+                combined_text = "\n\n" + "="*50 + "\n\n".join([
+                    f"FILE: {filename}\n{'-'*40}\n{text}"
+                    for filename, text in batch_texts.items()
+                ])
+                st.download_button(
+                    "📥 Download All Results",
+                    combined_text,
+                    file_name=f"batch_results_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt",
+                    mime="text/plain",
+                    type="primary"
+                )
+
+        elif "result" in st.session_state and st.session_state["result"].get("status") == "success":
             result = st.session_state["result"]
 
             # Create columns for different aspects
@@ -510,7 +752,7 @@ def main():
             st.info("No results available. Process a document first.")
 
     # Raw Response Tab
-    with tabs[2]:
+    with tabs[3]:
         st.header("Raw API Response")
 
         if "result" in st.session_state:
@@ -533,7 +775,7 @@ def main():
             st.info("No response data available")
 
     # Analytics Tab
-    with tabs[3]:
+    with tabs[4]:
         st.header("Processing Analytics")
 
         if "result" in st.session_state and st.session_state["result"].get("status") == "success":
@@ -593,7 +835,7 @@ def main():
             st.info("Process a document to see analytics")
 
     # Logs Tab
-    with tabs[4]:
+    with tabs[5]:
         st.header("System Logs")
 
         # Log controls
