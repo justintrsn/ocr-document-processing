@@ -52,9 +52,10 @@ class Settings(BaseSettings):
     llm_timeout: int = Field(default=int(os.getenv("LLM_TIMEOUT", "30")))
 
     # Format Support Configuration
-    supported_formats: list[str] = Field(
-        default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF").split(",")
-    )
+    @property
+    def supported_formats(self) -> list[str]:
+        formats = os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF")
+        return formats.split(",")
     pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
     pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
     auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
@@ -66,34 +67,6 @@ class Settings(BaseSettings):
     history_cleanup_on_startup: bool = Field(
         default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true"
     )
-
-    # Format Support Configuration
-    supported_formats: list[str] = Field(
-        default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF").split(",")
-    )
-    pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
-    pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
-    auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
-    max_batch_size: int = Field(default=int(os.getenv("MAX_BATCH_SIZE", "20")))
-
-    # History Database Configuration
-    history_db_path: Path = Field(default=Path(os.getenv("HISTORY_DB_PATH", "./data/history.db")))
-    history_retention_days: int = Field(default=int(os.getenv("HISTORY_RETENTION_DAYS", "7")))
-    history_cleanup_on_startup: bool = Field(
-        default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true"
-    )
-
-    # Format Support Configuration
-    supported_formats: str = Field(default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF"))
-    pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
-    pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
-    auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
-    max_batch_size: int = Field(default=int(os.getenv("MAX_BATCH_SIZE", "20")))
-
-    # History Database Configuration
-    history_db_path: Path = Field(default=Path(os.getenv("HISTORY_DB_PATH", "./data/history.db")))
-    history_retention_days: int = Field(default=int(os.getenv("HISTORY_RETENTION_DAYS", "7")))
-    history_cleanup_on_startup: bool = Field(default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true")
 
     @field_validator("storage_path", "log_path", "history_db_path", mode='before')
     def create_directories(cls, v):
@@ -105,20 +78,6 @@ class Settings(BaseSettings):
             path.mkdir(parents=True, exist_ok=True)
         return path
 
-    @field_validator("history_db_path", mode='before')
-    def create_history_db_directory(cls, v):
-        path = Path(v)
-        # Create parent directory for database file
-        path.parent.mkdir(parents=True, exist_ok=True)
-        return path
-
-    @field_validator("weight_image_quality", "weight_ocr_confidence", "weight_grammar_score",
-                     "weight_context_score", "weight_structure_score")
-    def validate_weights(cls, v):
-        if not 0 <= v <= 1:
-            raise ValueError("Weights must be between 0 and 1")
-        return v
-
     @property
     def ocr_url(self) -> str:
         return f"{self.huawei_ocr_endpoint}/v2/{self.huawei_project_id}/ocr/smart-document-recognizer"
@@ -126,7 +85,7 @@ class Settings(BaseSettings):
     class Config:
         env_file = ".env"
         case_sensitive = False
-        extra = "ignore"  # Ignore extra fields from environment
+        extra = "ignore"  # Ignore extra fields from .env file
 
 
 settings = Settings()
