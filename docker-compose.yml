@@ -1,0 +1,30 @@
+version: '3.8'
+
+services:
+  ocr-api:
+    build: .
+    container_name: ocr-document-api
+    ports:
+      - "8000:8000"
+    environment:
+      - HUAWEI_OCR_API_KEY=${HUAWEI_OCR_API_KEY}
+      - HUAWEI_OCR_ENDPOINT=${HUAWEI_OCR_ENDPOINT}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - LOG_LEVEL=INFO
+      - MAX_FILE_SIZE_MB=10
+      - PYTHONUNBUFFERED=1
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+    networks:
+      - ocr-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 10s
+
+networks:
+  ocr-network:
+    driver: bridge

@@ -1,0 +1,57 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Git
+.git/
+.gitignore
+
+# Project specific
+.specify/
+.claude/
+specs/
+tests/
+postman/
+data/documents/*
+data/logs/*
+data/queue/*
+
+# Documentation
+*.md
+!README.md
+!API_DOCUMENTATION.md
+
+# Scripts
+*.sh
+run_separately.txt
+
+# Environment files
+.env*
+!.env.example
+
+# Streamlit app (not needed in API container)
+streamlit_app.py

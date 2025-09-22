@@ -11,8 +11,8 @@ from datetime import datetime, timedelta
 import base64
 
 try:
-    from src.services.image_quality_service import ImageQualityService
-    from src.services.ocr_service import OCRService
+    from src.services.image_quality_service import ImageQualityAssessor as ImageQualityService
+    from src.services.ocr_service import HuaweiOCRService as OCRService
     from src.services.llm_enhancement_service import LLMEnhancementService
     from src.services.processing_orchestrator import ProcessingOrchestrator
     from src.models.ocr_models import OCRResponse
@@ -22,8 +22,8 @@ except ImportError:
     import sys
     import os
     sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-    from src.services.image_quality_service import ImageQualityService
-    from src.services.ocr_service import OCRService
+    from src.services.image_quality_service import ImageQualityAssessor as ImageQualityService
+    from src.services.ocr_service import HuaweiOCRService as OCRService
     from src.services.llm_enhancement_service import LLMEnhancementService
     from src.services.processing_orchestrator import ProcessingOrchestrator
     from src.models.ocr_models import OCRResponse

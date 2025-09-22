@@ -52,7 +52,10 @@ class Settings(BaseSettings):
     llm_timeout: int = Field(default=int(os.getenv("LLM_TIMEOUT", "30")))
 
     # Format Support Configuration
-    supported_formats: str = Field(default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF"))
+    @property
+    def supported_formats(self) -> list[str]:
+        formats = os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF")
+        return formats.split(",")
     pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
     pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
     auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
@@ -61,7 +64,9 @@ class Settings(BaseSettings):
     # History Database Configuration
     history_db_path: Path = Field(default=Path(os.getenv("HISTORY_DB_PATH", "./data/history.db")))
     history_retention_days: int = Field(default=int(os.getenv("HISTORY_RETENTION_DAYS", "7")))
-    history_cleanup_on_startup: bool = Field(default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true")
+    history_cleanup_on_startup: bool = Field(
+        default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true"
+    )
 
     @field_validator("storage_path", "log_path", "history_db_path", mode='before')
     def create_directories(cls, v):

@@ -25,3 +25,8 @@ locust==2.17.0
 # Documentation
 mkdocs==1.5.3
 mkdocs-material==9.4.14
+
+# Optional OCR Enhancement (not required for basic functionality)
+# Uncomment if you want text orientation detection:
+# pytesseract==0.3.10
+# Note: Also requires tesseract-ocr system package

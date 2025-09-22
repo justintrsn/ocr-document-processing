@@ -1,0 +1,439 @@
+{
+  "info": {
+    "name": "OCR Document Processing API v2",
+    "description": "Complete OCR pipeline with preprocessing, quality check, OCR extraction, and LLM enhancement. Supports 11 file formats.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "_postman_id": "ocr-api-v2-collection",
+    "version": "2.0.0"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "default"
+    },
+    {
+      "key": "api_version",
+      "value": "v1",
+      "type": "default"
+    }
+  ],
+  "item": [
+    {
+      "name": "Core Endpoints",
+      "item": [
+        {
+          "name": "Process Document - Quick OCR",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{base64_file_content}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"enable_preprocessing\": false,\n    \"return_format\": \"ocr_only\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 40,\n    \"confidence_threshold\": 70\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"]
+            },
+            "description": "Quick OCR extraction without preprocessing or LLM enhancement"
+          }
+        },
+        {
+          "name": "Process Document - Full Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{base64_file_content}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": true,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  },\n  \"async_processing\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"]
+            },
+            "description": "Complete pipeline with preprocessing, OCR, and LLM enhancement"
+          }
+        },
+        {
+          "name": "Process Document - With Preprocessing",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{base64_file_content}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 50,\n    \"confidence_threshold\": 75\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr?preprocessing_quality_threshold=45",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"],
+              "query": [
+                {
+                  "key": "preprocessing_quality_threshold",
+                  "value": "45",
+                  "description": "Override quality threshold for preprocessing"
+                }
+              ]
+            },
+            "description": "OCR with image preprocessing for quality improvement"
+          }
+        },
+        {
+          "name": "Process Document - OBS URL",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"obs_url\",\n    \"obs_url\": \"obs://your-bucket/path/to/document.pdf\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": false,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"minimal\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"]
+            },
+            "description": "Process document from Huawei OBS storage"
+          }
+        },
+        {
+          "name": "Process PDF - Specific Page",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{base64_pdf_content}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_preprocessing\": false,\n    \"return_format\": \"full\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr?page_number=1&process_all_pages=false",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"],
+              "query": [
+                {
+                  "key": "page_number",
+                  "value": "1",
+                  "description": "Specific page number for PDF (1-indexed)"
+                },
+                {
+                  "key": "process_all_pages",
+                  "value": "false",
+                  "description": "Process all pages in PDF"
+                }
+              ]
+            },
+            "description": "Process specific page from PDF document"
+          }
+        },
+        {
+          "name": "Process Document - Async",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"{{base64_file_content}}\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": true,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"full\"\n  },\n  \"async_processing\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"]
+            },
+            "description": "Submit document for asynchronous processing"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Validation & Support",
+      "item": [
+        {
+          "name": "Validate Format",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                {
+                  "key": "file",
+                  "type": "file",
+                  "src": [],
+                  "description": "File to validate"
+                }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr/validate-format",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr", "validate-format"]
+            },
+            "description": "Validate file format and check capabilities"
+          }
+        },
+        {
+          "name": "Get Supported Formats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr/supported-formats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr", "supported-formats"]
+            },
+            "description": "Get list of all supported file formats with capabilities"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Preprocessing",
+      "item": [
+        {
+          "name": "Preprocess Document",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source_type\": \"file\",\n  \"file_data\": \"{{base64_file_content}}\",\n  \"quality_threshold\": 80.0,\n  \"save_to_obs\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/preprocess",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "preprocess"]
+            },
+            "description": "Preprocess document to improve quality before OCR"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Batch Processing",
+      "item": [
+        {
+          "name": "Process Batch",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"documents\": [\n    {\n      \"document_id\": \"doc1\",\n      \"source\": {\n        \"type\": \"file\",\n        \"file\": \"{{base64_file1}}\"\n      }\n    },\n    {\n      \"document_id\": \"doc2\",\n      \"source\": {\n        \"type\": \"file\",\n        \"file\": \"{{base64_file2}}\"\n      }\n    }\n  ],\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"minimal\"\n  },\n  \"async_processing\": true\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/batch",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "batch"]
+            },
+            "description": "Process multiple documents (up to 20) in batch"
+          }
+        },
+        {
+          "name": "Get Batch Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/batch/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "batch", "{{job_id}}"]
+            },
+            "description": "Get status of batch processing job"
+          }
+        }
+      ]
+    },
+    {
+      "name": "History",
+      "item": [
+        {
+          "name": "Get Processing History",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr/history/{{document_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr", "history", "{{document_id}}"]
+            },
+            "description": "Get processing history for a document (7-day retention)"
+          }
+        },
+        {
+          "name": "Get Async Job Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr/job/{{job_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr", "job", "{{job_id}}"]
+            },
+            "description": "Get status and results of async OCR job"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health & Monitoring",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/health",
+              "host": ["{{base_url}}"],
+              "path": ["health"]
+            },
+            "description": "Check API health status"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Test Examples",
+      "item": [
+        {
+          "name": "Example - PNG with Full Pipeline",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"source\": {\n    \"type\": \"file\",\n    \"file\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==\"\n  },\n  \"processing_options\": {\n    \"enable_ocr\": true,\n    \"enable_enhancement\": true,\n    \"enable_preprocessing\": true,\n    \"return_format\": \"full\"\n  },\n  \"thresholds\": {\n    \"image_quality_threshold\": 60,\n    \"confidence_threshold\": 80\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr"]
+            },
+            "description": "Example with a small PNG image"
+          }
+        },
+        {
+          "name": "Example - Test All Formats",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/api/{{api_version}}/ocr/supported-formats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "{{api_version}}", "ocr", "supported-formats"]
+            },
+            "description": "First get supported formats, then test each one"
+          }
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Helper function to encode file to base64",
+          "// Use this in Pre-request Script when testing with local files",
+          "",
+          "// Example usage:",
+          "// 1. Set environment variable 'test_file_path' to your file path",
+          "// 2. This script will automatically encode it to base64",
+          "",
+          "if (pm.environment.get('test_file_path')) {",
+          "    // Note: File encoding requires Postman desktop app",
+          "    console.log('File path set:', pm.environment.get('test_file_path'));",
+          "    console.log('Please ensure file is base64 encoded in base64_file_content variable');",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Common test assertions",
+          "",
+          "// Check status code",
+          "pm.test('Status code is 200', function () {",
+          "    pm.response.to.have.status(200);",
+          "});",
+          "",
+          "// Check response time",
+          "pm.test('Response time is less than 30s', function () {",
+          "    pm.expect(pm.response.responseTime).to.be.below(30000);",
+          "});",
+          "",
+          "// Check response structure",
+          "if (pm.response.json().status) {",
+          "    pm.test('Response has status field', function () {",
+          "        const jsonData = pm.response.json();",
+          "        pm.expect(jsonData).to.have.property('status');",
+          "    });",
+          "}",
+          "",
+          "// Store document_id for history endpoint",
+          "if (pm.response.json().metadata && pm.response.json().metadata.document_id) {",
+          "    pm.environment.set('last_document_id', pm.response.json().metadata.document_id);",
+          "}",
+          "",
+          "// Store job_id for async endpoint",
+          "if (pm.response.json().job_id) {",
+          "    pm.environment.set('last_job_id', pm.response.json().job_id);",
+          "}"
+        ]
+      }
+    }
+  ]
+}

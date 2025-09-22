@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from datetime import datetime
 
 from src.core.config import settings
-from src.api.endpoints import documents, status, health, cost, ocr
+from src.api.endpoints import documents, status, health, cost, ocr, batch, history, preprocessing
 
 # Configure logging
 logging.basicConfig(
@@ -70,6 +70,9 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 # Include routers
 app.include_router(ocr.router, tags=["OCR"])  # Main OCR processing endpoint
+app.include_router(batch.router, tags=["Batch"])  # Batch processing endpoint
+app.include_router(history.router, tags=["History"])  # History retrieval endpoint
+app.include_router(preprocessing.router, tags=["Preprocessing"])  # Preprocessing endpoints
 app.include_router(documents.router, prefix="/documents", tags=["Documents"])
 app.include_router(status.router, prefix="/documents", tags=["Status"])
 app.include_router(health.router, prefix="/health", tags=["Health"])

@@ -32,6 +32,18 @@ Tests the OCR API endpoint with images stored in Huawei OBS.
 - Streamlit runs on port 8501 by default
 - Make sure to activate the virtual environment or the scripts will handle it automatically
 
+## Comprehensive Testing
+
+For complete pipeline testing with real documents, use the integration tests:
+
+```bash
+# Run all tests with pytest
+pytest tests/integration/test_complete_pipeline.py -v
+
+# Run standalone test with real documents
+python tests/integration/test_complete_pipeline.py --api
+```
+
 ## Running Services Separately
 
 If you need to run services in separate terminals:

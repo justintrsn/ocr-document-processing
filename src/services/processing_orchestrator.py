@@ -33,6 +33,7 @@ class ProcessingConfig:
     quality_threshold: float = 30.0  # Minimum quality score to proceed
     confidence_threshold: float = 80.0  # Minimum confidence for automatic processing
     enable_enhancements: List[str] = None  # List of enhancements to apply
+    enable_preprocessing: bool = True  # Apply preprocessing to all formats
     max_processing_time: int = 180  # Maximum processing time in seconds (3 minutes)
 
     # Confidence weights (only Image Quality and OCR used)
@@ -141,7 +142,7 @@ class ProcessingOrchestrator:
             ocr_confidence = 0.0
 
             if not skip_ocr:
-                ocr_result = self._perform_ocr(document_path, document_url, document_data)
+                ocr_result = self._perform_ocr(document_path, document_url, document_data, config)
 
                 if not ocr_result:
                     return self._create_error_result(
@@ -232,14 +233,21 @@ class ProcessingOrchestrator:
     def _perform_ocr(self,
                      document_path: Optional[Path],
                      document_url: Optional[str],
-                     document_data: Optional[bytes]) -> Optional[Any]:
+                     document_data: Optional[bytes],
+                     config: Optional[ProcessingConfig] = None) -> Optional[Any]:
         """Perform OCR processing with timing"""
         start_time = time.time()
         logger.info("Performing OCR processing...")
 
+        # Use config to determine preprocessing
+        apply_preprocessing = config.enable_preprocessing if config else True
+
         try:
             if document_path:
-                ocr_result = self.ocr_service.process_document(image_path=document_path)
+                ocr_result = self.ocr_service.process_document(
+                    image_path=document_path,
+                    apply_preprocessing=apply_preprocessing
+                )
             elif document_url:
                 # Handle OBS URLs by converting to signed URL
                 if document_url.startswith('obs://'):
@@ -255,23 +263,24 @@ class ProcessingOrchestrator:
                         # Generate signed URL for OCR service
                         signed_url = self.obs_service.get_signed_url(object_key)
                         logger.info(f"Generated signed URL for OCR processing: {object_key}")
-                        ocr_result = self.ocr_service.process_document(image_url=signed_url)
+                        ocr_result = self.ocr_service.process_document(
+                            image_url=signed_url,
+                            apply_preprocessing=apply_preprocessing
+                        )
                     else:
                         raise ValueError(f"Invalid OBS URL format: {document_url}")
                 else:
                     # Regular HTTP/HTTPS URL
-                    ocr_result = self.ocr_service.process_document(image_url=document_url)
+                    ocr_result = self.ocr_service.process_document(
+                        image_url=document_url,
+                        apply_preprocessing=apply_preprocessing
+                    )
             elif document_data:
-                # Save temporary file for OCR processing
-                import tempfile
-                with tempfile.NamedTemporaryFile(suffix='.jpg', delete=False) as tmp_file:
-                    tmp_file.write(document_data)
-                    tmp_path = Path(tmp_file.name)
-
-                ocr_result = self.ocr_service.process_document(image_path=tmp_path)
-
-                # Clean up temporary file
-                tmp_path.unlink()
+                # Process document bytes directly
+                ocr_result = self.ocr_service.process_document(
+                    file_bytes=document_data,
+                    apply_preprocessing=apply_preprocessing
+                )
             else:
                 raise ValueError("No document input provided")
 
@@ -409,7 +418,14 @@ class ProcessingOrchestrator:
                 "total_processing_time": self.metrics.total_processing_time,
                 "words_extracted": len(ocr_text.split()),
                 "corrections_applied": len(corrections_made),
-                "enhancements_applied": list(enhancement_results.keys())
+                "enhancements_applied": list(enhancement_results.keys()),
+                # Add actual quality metrics from the assessment
+                "quality_metrics": {
+                    "sharpness": quality_result.sharpness_score if quality_result else 0.0,
+                    "contrast": quality_result.contrast_score if quality_result else 0.0,
+                    "resolution": quality_result.resolution_score if quality_result else 0.0,
+                    "noise_level": 100 - quality_result.noise_score if quality_result else 0.0  # Convert noise score to noise level
+                }
             }
         )
 

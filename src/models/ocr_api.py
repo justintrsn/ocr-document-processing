@@ -47,6 +47,7 @@ class ProcessingOptions(BaseModel):
     # Quality check is always performed - it gates OCR processing
     enable_ocr: bool = Field(True, description="Perform OCR extraction")
     enable_enhancement: bool = Field(False, description="Apply LLM enhancement (comprehensive single-pass improvement)")
+    enable_preprocessing: bool = Field(True, description="Apply preprocessing to all supported formats including PDFs (rotation, contrast, noise reduction, etc.)")
     return_format: ReturnFormat = Field(ReturnFormat.FULL,
                                         description="Response format")
 
