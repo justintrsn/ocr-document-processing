@@ -29,9 +29,6 @@ class Settings(BaseSettings):
     storage_max_size_mb: int = Field(default=int(os.getenv("STORAGE_MAX_SIZE_MB", "10")))
     storage_retention_days: int = Field(default=int(os.getenv("STORAGE_RETENTION_DAYS", "30")))
 
-    queue_path: Path = Field(default=Path(os.getenv("QUEUE_PATH", "./data/queue")))
-    manual_review_threshold: int = Field(default=int(os.getenv("MANUAL_REVIEW_THRESHOLD", "80")))
-
     log_level: str = Field(default=os.getenv("LOG_LEVEL", "INFO"))
     log_format: str = Field(default=os.getenv("LOG_FORMAT", "json"))
     log_path: Path = Field(default=Path(os.getenv("LOG_PATH", "./data/logs")))
@@ -42,15 +39,6 @@ class Settings(BaseSettings):
     processing_target_time: int = Field(default=int(os.getenv("PROCESSING_TARGET_TIME", "6")))
     image_max_size_mb: int = Field(default=int(os.getenv("IMAGE_MAX_SIZE_MB", "10")))
     image_optimal_size_mb: int = Field(default=int(os.getenv("IMAGE_OPTIMAL_SIZE_MB", "7")))
-
-    spacy_model_en: str = Field(default=os.getenv("SPACY_MODEL_EN", "en_core_web_sm"))
-    spacy_model_zh: str = Field(default=os.getenv("SPACY_MODEL_ZH", "zh_core_web_sm"))
-
-    weight_image_quality: float = Field(default=float(os.getenv("WEIGHT_IMAGE_QUALITY", "0.2")))
-    weight_ocr_confidence: float = Field(default=float(os.getenv("WEIGHT_OCR_CONFIDENCE", "0.3")))
-    weight_grammar_score: float = Field(default=float(os.getenv("WEIGHT_GRAMMAR_SCORE", "0.2")))
-    weight_context_score: float = Field(default=float(os.getenv("WEIGHT_CONTEXT_SCORE", "0.2")))
-    weight_structure_score: float = Field(default=float(os.getenv("WEIGHT_STRUCTURE_SCORE", "0.1")))
 
     obs_bucket_name: str = Field(default=os.getenv("OBS_BUCKET_NAME", "sample-dataset-bucket"))
     obs_endpoint: str = Field(default=os.getenv("OBS_ENDPOINT", "https://obs.ap-southeast-3.myhuaweicloud.com"))
@@ -79,10 +67,42 @@ class Settings(BaseSettings):
         default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true"
     )
 
-    @field_validator("storage_path", "queue_path", "log_path", mode='before')
+    # Format Support Configuration
+    supported_formats: list[str] = Field(
+        default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF").split(",")
+    )
+    pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
+    pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
+    auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
+    max_batch_size: int = Field(default=int(os.getenv("MAX_BATCH_SIZE", "20")))
+
+    # History Database Configuration
+    history_db_path: Path = Field(default=Path(os.getenv("HISTORY_DB_PATH", "./data/history.db")))
+    history_retention_days: int = Field(default=int(os.getenv("HISTORY_RETENTION_DAYS", "7")))
+    history_cleanup_on_startup: bool = Field(
+        default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true"
+    )
+
+    # Format Support Configuration
+    supported_formats: str = Field(default=os.getenv("SUPPORTED_FORMATS", "PNG,JPG,JPEG,BMP,GIF,TIFF,WebP,PCX,ICO,PSD,PDF"))
+    pdf_max_pages_auto_process: int = Field(default=int(os.getenv("PDF_MAX_PAGES_AUTO_PROCESS", "20")))
+    pdf_parallel_pages: int = Field(default=int(os.getenv("PDF_PARALLEL_PAGES", "4")))
+    auto_rotation: bool = Field(default=os.getenv("AUTO_ROTATION", "true").lower() == "true")
+    max_batch_size: int = Field(default=int(os.getenv("MAX_BATCH_SIZE", "20")))
+
+    # History Database Configuration
+    history_db_path: Path = Field(default=Path(os.getenv("HISTORY_DB_PATH", "./data/history.db")))
+    history_retention_days: int = Field(default=int(os.getenv("HISTORY_RETENTION_DAYS", "7")))
+    history_cleanup_on_startup: bool = Field(default=os.getenv("HISTORY_CLEANUP_ON_STARTUP", "true").lower() == "true")
+
+    @field_validator("storage_path", "log_path", "history_db_path", mode='before')
     def create_directories(cls, v):
         path = Path(v)
-        path.mkdir(parents=True, exist_ok=True)
+        # For database files, create parent directory only
+        if str(path).endswith('.db'):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        else:
+            path.mkdir(parents=True, exist_ok=True)
         return path
 
     @field_validator("history_db_path", mode='before')
