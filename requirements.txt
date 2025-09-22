@@ -4,7 +4,6 @@ pydantic>=2.7.4
 pydantic-settings>=2.1.0
 pillow==10.1.0
 opencv-python>=4.8.0
-spacy==3.7.2
 numpy<2.0.0
 httpx==0.25.2
 requests==2.31.0

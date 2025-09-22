@@ -11,9 +11,14 @@ from pathlib import Path
 import pandas as pd
 from datetime import datetime
 import io
+import os
+from dotenv import load_dotenv
 
-# API Configuration
-API_BASE_URL = "http://localhost:8000"
+# Load environment variables
+load_dotenv()
+
+# API Configuration - can be overridden by environment variable
+API_BASE_URL = os.getenv("OCR_API_URL", "http://188.239.9.105:8000")
 
 # Page configuration
 st.set_page_config(
