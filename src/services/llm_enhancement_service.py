@@ -48,8 +48,10 @@ class LLMConfig:
         """Load from environment if not provided"""
         if not self.api_key:
             self.api_key = os.getenv("MAAS_API_KEY")
+            logger.info(f"MAAS_API_KEY loaded from env: {'Yes' if self.api_key else 'No'}")
         if not self.base_url:
             self.base_url = os.getenv("MAAS_BASE_URL", "https://api.modelarts-maas.com/v1")
+            logger.info(f"MAAS_BASE_URL: {self.base_url if self.base_url else 'Not set'}")
         if not self.model_name:
             self.model_name = os.getenv("MAAS_MODEL_NAME", "deepseek-v3.1")
 
@@ -67,6 +69,8 @@ class LLMEnhancementService:
     def _initialize_llm(self) -> ChatOpenAI:
         """Initialize LangChain ChatOpenAI for Huawei ModelArts MAAS"""
         if not self.config.api_key or not self.config.base_url:
+            logger.error(f"MAAS configuration missing - API_KEY: {bool(self.config.api_key)}, BASE_URL: {bool(self.config.base_url)}")
+            logger.error(f"Environment check - MAAS_API_KEY: {bool(os.getenv('MAAS_API_KEY'))}, MAAS_BASE_URL: {bool(os.getenv('MAAS_BASE_URL'))}")
             raise ValueError("MAAS_API_KEY and MAAS_BASE_URL must be set in environment or config")
 
         return ChatOpenAI(

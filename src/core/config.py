@@ -5,7 +5,14 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
-load_dotenv()
+# Load .env file from project root
+env_path = Path(__file__).parent.parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+    print(f"Loaded .env from: {env_path}")
+else:
+    load_dotenv()  # Try default location
+    print("Warning: .env file not found at expected location, trying default")
 
 
 class Settings(BaseSettings):
